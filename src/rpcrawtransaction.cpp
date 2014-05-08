@@ -195,6 +195,88 @@ Value getrawtransaction(const Array& params, bool fHelp)
     return result;
 }
 
+Value listalltransactions(const Array &params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 4)
+        throw runtime_error(
+            "listalltransactions \"address\" ( verbose skip count )\n"
+            
+            "\nReturns array of all transactions associated with address.\n"
+            "Note: this may include orphaned transactions.\n"
+            
+            "\nArguments:\n"
+            "1. address          (string, required) The Bitcoin address\n"
+            "2. verbose          (numeric, optional, default=0) If 0, return only transaction hex\n"
+            "3. skip             (numeric, optional, default=0) The number of transactions to skip\n"
+            "4. count            (numeric, optional, default=100) The number of transactions to return\n"
+            
+            "\nExamples\n"
+            + HelpExampleCli("listalltransactions", "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P")
+            + HelpExampleCli("listalltransactions", "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P 1 500 5")
+            + HelpExampleRpc("listalltransactions", "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P, 1, 500, 5")
+        );
+    
+    RPCTypeCheck(params, list_of(str_type)(int_type)(int_type)(int_type)(int_type));
+    
+    if (!fAddrIndex)
+        throw JSONRPCError(RPC_MISC_ERROR, "Address index not enabled");
+    
+    CBitcoinAddress address(params[0].get_str());
+    if (!address.IsValid())
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    CTxDestination dest = address.Get();
+    
+    std::set<CExtDiskTxPos> setpos;
+    if (!FindTransactionsByDestination(dest, setpos))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot search for address");
+    
+    bool fVerbose = false;
+    if (params.size() > 1)
+        fVerbose = (params[1].get_int() != 0);
+    
+    int nSkip = 0;
+    if (params.size() > 2)
+        nSkip = params[2].get_int();
+    if (nSkip < 0)
+        nSkip += setpos.size();
+    
+    int nCount = 100;
+    if (params.size() > 3)
+        nCount = params[3].get_int();
+    
+    std::set<CExtDiskTxPos>::const_iterator it = setpos.begin();
+    while (it != setpos.end() && nSkip--)
+        it++;
+    
+    Array result;
+    while (it != setpos.end() && nCount > 0)
+    {
+        CTransaction tx;
+        uint256 hashBlock;
+        if (!ReadTransaction(tx, *it, hashBlock))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Cannot read transaction from disk");
+        
+        CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+        ssTx << tx;
+        string strHex = HexStr(ssTx.begin(), ssTx.end());
+        
+        if (fVerbose)
+        {
+            Object entry;            
+            entry.push_back(Pair("hex", strHex));
+            TxToJSON(tx, hashBlock, entry);
+            result.push_back(entry);
+        }
+        else
+            result.push_back(strHex);
+        
+        nCount--;
+        it++;
+    }
+    
+    return result;
+}
+
 #ifdef ENABLE_WALLET
 Value listunspent(const Array& params, bool fHelp)
 {
