@@ -195,6 +195,71 @@ Value getrawtransaction(const Array& params, bool fHelp)
     return result;
 }
 
+Value gettxposition(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "gettxposition \"txid\"\n"
+            
+            "\nReturns information related to the position of transaction.\n"
+            
+            "\nArguments:\n"
+            "1. txid          (string, required) The transaction id\n"
+            
+            "\nResult:\n"
+            "{\n"
+            "  \"txid\" : \"hash\",      (string) The transaction id (same as provided)\n"
+            "  \"blockhash\" : \"hash\", (string) The block hash\n"
+            "  \"blockheight\" : n,      (numeric) The block height (if orphaned: -1, unconfirmed: 0)\n"
+            "  \"position\" : n          (numeric) The position of transaction within block (if unconfirmed: -1)\n"
+            "}\n"
+            
+            "\nExamples\n"
+            + HelpExampleCli("gettxposition", "546a406a131089e7c2f27d34a93a4d27441d98d096404d6737c5ad5b5e61a09b")
+            + HelpExampleRpc("gettxposition", "546a406a131089e7c2f27d34a93a4d27441d98d096404d6737c5ad5b5e61a09b")
+        );
+        
+    uint256 hash = ParseHashV(params[0], "parameter 1");
+    
+    CTransaction tx;
+    uint256 hashBlock = 0;
+    if (!GetTransaction(hash, tx, hashBlock, true))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+    
+    CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+    ssTx << tx;
+    
+    Object result;
+    result.push_back(Pair("txid", hash.GetHex()));
+    
+    int nHeight = 0;
+    int nPosition = -1;
+    
+    if (hashBlock != 0)
+    {
+        result.push_back(Pair("blockhash", hashBlock.GetHex()));
+        
+        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        if (mi != mapBlockIndex.end() && (*mi).second)
+        {
+            CBlockIndex* pindex = (*mi).second;
+            if (chainActive.Contains(pindex))
+                nHeight = pindex->nHeight;
+            else
+                nHeight = -1;
+                
+            CBlock block;
+            if (ReadBlockFromDisk(block, pindex))
+                nPosition = std::find(block.vtx.begin(), block.vtx.end(), tx) - block.vtx.begin();                
+        }
+    }
+    
+    result.push_back(Pair("blockheight", (int64_t)nHeight));
+    result.push_back(Pair("position", (int64_t)nPosition));
+    
+    return result;
+}
+
 Value listalltransactions(const Array &params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 5)
