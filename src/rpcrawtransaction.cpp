@@ -197,18 +197,18 @@ Value getrawtransaction(const Array& params, bool fHelp)
 
 Value listalltransactions(const Array &params, bool fHelp)
 {
-    if (fHelp || params.size() < 1 || params.size() > 4)
+    if (fHelp || params.size() < 1 || params.size() > 5)
         throw runtime_error(
-            "listalltransactions \"address\" ( verbose skip count )\n"
+            "listalltransactions \"address\" ( verbose skip count includeorphans )\n"
             
             "\nReturns array of all transactions associated with address.\n"
-            "Note: this may include orphaned transactions.\n"
             
             "\nArguments:\n"
             "1. address          (string, required) The Bitcoin address\n"
             "2. verbose          (numeric, optional, default=0) If 0, return only transaction hex\n"
             "3. skip             (numeric, optional, default=0) The number of transactions to skip\n"
             "4. count            (numeric, optional, default=100) The number of transactions to return\n"
+            "5. includeorphans   (numeric, optional, default=0) If 1, include orphaned transactions\n"
             
             "\nExamples\n"
             + HelpExampleCli("listalltransactions", "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P")
@@ -216,7 +216,7 @@ Value listalltransactions(const Array &params, bool fHelp)
             + HelpExampleRpc("listalltransactions", "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P, 1, 500, 5")
         );
     
-    RPCTypeCheck(params, list_of(str_type)(int_type)(int_type)(int_type)(int_type));
+    RPCTypeCheck(params, list_of(str_type)(int_type)(int_type)(int_type)(int_type)(int_type));
     
     if (!fAddrIndex)
         throw JSONRPCError(RPC_MISC_ERROR, "Address index not enabled");
@@ -244,6 +244,10 @@ Value listalltransactions(const Array &params, bool fHelp)
     if (params.size() > 3)
         nCount = params[3].get_int();
     
+    bool fIncludeOrphans = false;
+    if (params.size() > 4)
+        fIncludeOrphans = (params[4].get_int() != 0);
+    
     std::set<CExtDiskTxPos>::const_iterator it = setpos.begin();
     while (it != setpos.end() && nSkip--)
         it++;
@@ -255,6 +259,16 @@ Value listalltransactions(const Array &params, bool fHelp)
         uint256 hashBlock;
         if (!ReadTransaction(tx, *it, hashBlock))
             throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Cannot read transaction from disk");
+        
+        if (!fIncludeOrphans && hashBlock != 0)
+        {
+            CBlockIndex* pindex = mapBlockIndex[hashBlock];
+            if (!chainActive.Contains(pindex))
+            {
+                it++;
+                continue;
+            }
+        }
         
         CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
         ssTx << tx;

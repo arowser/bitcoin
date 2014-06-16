@@ -88,6 +88,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "listalltransactions"    && n > 1) ConvertTo<int64_t>(params[1]);
     if (strMethod == "listalltransactions"    && n > 2) ConvertTo<int64_t>(params[2]);
     if (strMethod == "listalltransactions"    && n > 3) ConvertTo<int64_t>(params[3]);
+    if (strMethod == "listalltransactions"    && n > 4) ConvertTo<int64_t>(params[4]);
     if (strMethod == "createrawtransaction"   && n > 0) ConvertTo<Array>(params[0]);
     if (strMethod == "createrawtransaction"   && n > 1) ConvertTo<Object>(params[1]);
     if (strMethod == "signrawtransaction"     && n > 1) ConvertTo<Array>(params[1], true);
