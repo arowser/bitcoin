@@ -475,6 +475,123 @@ Value listallunspent(const Array &params, bool fHelp)
     return results;
 }
 
+Value getallbalance(const Array &params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getallbalance \"address\" ( minconf maxreqsigs )\n"
+            
+            "\nReturns the sum of spendable transaction outputs by address\n"
+            "with at least minconf confirmations whereby maximal maxreqsigs\n"
+            "signatures are allowed to be required to redeem an output.\n"
+            
+            "\nArguments:\n"
+            "1. address          (string, required) The Bitcoin address\n"
+            "2. minconf          (numeric, optional, default=1) The minimum confirmations to filter. If 0, include mempool.\n"
+            "3. maxreqsigs       (numeric, optional, default=1) The number of signatures required to spend an output\n"
+            
+            "\nExamples\n"
+            + HelpExampleCli("getallbalance", "1BxtgEa8UcrMzVZaW32zVyJh4Sg4KGFzxA")
+            + HelpExampleCli("getallbalance", "1BxtgEa8UcrMzVZaW32zVyJh4Sg4KGFzxA 0 1")
+            + HelpExampleRpc("getallbalance", "1BxtgEa8UcrMzVZaW32zVyJh4Sg4KGFzxA, 0, 1")
+        );
+    
+    if (!fAddrIndex)
+        throw JSONRPCError(RPC_MISC_ERROR, "Address index not enabled");
+    
+    CBitcoinAddress address(params[0].get_str());
+    if (!address.IsValid())
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    CTxDestination dest = address.Get();
+    
+    std::set<CExtDiskTxPos> setpos;
+    if (!FindTransactionsByDestination(dest, setpos))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot search for address");
+    
+    int nMinDepth = 1;
+    if (params.size() > 1)
+        nMinDepth = params[1].get_int();
+        
+    int nMaxReqSigs = 1;
+    if (params.size() > 2)
+        nMaxReqSigs = params[2].get_int();
+
+    Array results;
+    int64_t nBalance = 0;
+    std::set<CExtDiskTxPos>::const_iterator it = setpos.begin();
+    while (it != setpos.end())
+    {
+        CTransaction tx;
+        uint256 hashBlock;
+        if (!ReadTransaction(tx, *it, hashBlock))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Cannot read transaction from disk");
+        CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+        ssTx << tx;
+        
+        CCoins coins;
+        pcoinsTip->GetCoins(tx.GetHash(), coins);
+        for (unsigned int i = 0; i < tx.vout.size(); i++) {
+            const CTxOut& txout = tx.vout[i];
+            if (!(coins.IsAvailable(i) && txout.nValue > 0))
+                continue;
+            
+            txnouttype type;
+            vector<CTxDestination> addresses;
+            int nRequired;
+            if (!ExtractDestinations(txout.scriptPubKey, type, addresses, nRequired))
+                continue;
+            
+            if (type == TX_MULTISIG && nRequired > nMaxReqSigs)
+                continue;
+                
+            if (std::find(addresses.begin(), addresses.end(), dest) == addresses.end())
+                continue;
+            
+            int nDepth = 0;
+            if (hashBlock != 0)
+            {
+                CBlockIndex* pindex = mapBlockIndex[hashBlock];
+                if (chainActive.Contains(pindex))
+                    nDepth = chainActive.Height() - pindex->nHeight + 1;
+            }
+            
+            if (nDepth < nMinDepth)
+                continue;
+            
+            nBalance += txout.nValue;
+        }
+        it++;
+    }
+
+    if (nMinDepth < 1)
+    {
+        LOCK(mempool.cs);
+        BOOST_FOREACH(const PAIRTYPE(uint256, CTxMemPoolEntry)& entry, mempool.mapTx)
+        {
+            const CTransaction& tx = entry.second.GetTx();
+            for (unsigned int i = 0; i < tx.vout.size(); i++)
+            {
+                const CTxOut& txout = tx.vout[i];
+                txnouttype type;
+                vector<CTxDestination> addresses;
+                int nRequired;
+                if (!ExtractDestinations(txout.scriptPubKey, type, addresses, nRequired))
+                    continue;
+                
+                if (type == TX_MULTISIG && nRequired > nMaxReqSigs)
+                    continue;
+                
+                if (std::find(addresses.begin(), addresses.end(), dest) == addresses.end())
+                    continue;
+                
+                nBalance += txout.nValue;
+            }
+        }
+    }
+    
+    return ValueFromAmount(nBalance);
+}
+
 #ifdef ENABLE_WALLET
 Value listunspent(const Array& params, bool fHelp)
 {

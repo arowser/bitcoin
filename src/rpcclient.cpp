@@ -87,6 +87,8 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "listallunspent"         && n > 2) ConvertTo<int64_t>(params[2]);
     if (strMethod == "listallunspent"         && n > 3) ConvertTo<int64_t>(params[3]);
     if (strMethod == "listallunspent"         && n > 4) ConvertTo<int64_t>(params[4]);
+    if (strMethod == "getallbalance"          && n > 1) ConvertTo<int64_t>(params[1]);
+    if (strMethod == "getallbalance"          && n > 2) ConvertTo<int64_t>(params[2]);
     if (strMethod == "getblock"               && n > 1) ConvertTo<bool>(params[1]);
     if (strMethod == "getrawtransaction"      && n > 1) ConvertTo<int64_t>(params[1]);
     if (strMethod == "listalltransactions"    && n > 1) ConvertTo<int64_t>(params[1]);
