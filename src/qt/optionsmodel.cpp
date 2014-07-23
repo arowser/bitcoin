@@ -3,7 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include "bitcoin-config.h"
+#include "config/bitcoin-config.h"
 #endif
 
 #include "optionsmodel.h"
@@ -110,6 +110,11 @@ void OptionsModel::Init()
     if (!SoftSetBoolArg("-upnp", settings.value("fUseUPnP").toBool()))
         addOverriddenOption("-upnp");
 
+    if (!settings.contains("fListen"))
+        settings.setValue("fListen", DEFAULT_LISTEN);
+    if (!SoftSetBoolArg("-listen", settings.value("fListen").toBool()))
+        addOverriddenOption("-listen");
+
     if (!settings.contains("fUseProxy"))
         settings.setValue("fUseProxy", false);
     if (!settings.contains("addrProxy"))
@@ -117,11 +122,6 @@ void OptionsModel::Init()
     // Only try to set -proxy, if user has enabled fUseProxy
     if (settings.value("fUseProxy").toBool() && !SoftSetArg("-proxy", settings.value("addrProxy").toString().toStdString()))
         addOverriddenOption("-proxy");
-    if (!settings.contains("nSocksVersion"))
-        settings.setValue("nSocksVersion", 5);
-    // Only try to set -socks, if user has enabled fUseProxy
-    if (settings.value("fUseProxy").toBool() && !SoftSetArg("-socks", settings.value("nSocksVersion").toString().toStdString()))
-        addOverriddenOption("-socks");
 
     // Display
     if (!settings.contains("language"))
@@ -183,8 +183,6 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             QStringList strlIpPort = settings.value("addrProxy").toString().split(":", QString::SkipEmptyParts);
             return strlIpPort.at(1);
         }
-        case ProxySocksVersion:
-            return settings.value("nSocksVersion", 5);
 
 #ifdef ENABLE_WALLET
         case Fee: {
@@ -214,6 +212,8 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             return settings.value("nDatabaseCache");
         case ThreadsScriptVerif:
             return settings.value("nThreadsScriptVerif");
+        case Listen:
+            return settings.value("fListen");
         default:
             return QVariant();
         }
@@ -277,13 +277,6 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
             }
         }
         break;
-        case ProxySocksVersion: {
-            if (settings.value("nSocksVersion") != value) {
-                settings.setValue("nSocksVersion", value.toInt());
-                setRestartRequired(true);
-            }
-        }
-        break;
 #ifdef ENABLE_WALLET
         case Fee: { // core option - can be changed on-the-fly
             // Todo: Add is valid check  and warn via message, if not
@@ -301,9 +294,7 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
             break;
 #endif
         case DisplayUnit:
-            nDisplayUnit = value.toInt();
-            settings.setValue("nDisplayUnit", nDisplayUnit);
-            emit displayUnitChanged(nDisplayUnit);
+            setDisplayUnit(value);
             break;
         case DisplayAddresses:
             bDisplayAddresses = value.toBool();
@@ -339,13 +330,32 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
                 setRestartRequired(true);
             }
             break;
+        case Listen:
+            if (settings.value("fListen") != value) {
+                settings.setValue("fListen", value);
+                setRestartRequired(true);
+            }
+            break;
         default:
             break;
         }
     }
+
     emit dataChanged(index, index);
 
     return successful;
+}
+
+/** Updates current unit in memory, settings and emits displayUnitChanged(newUnit) signal */
+void OptionsModel::setDisplayUnit(const QVariant &value)
+{
+    if (!value.isNull())
+    {
+        QSettings settings;
+        nDisplayUnit = value.toInt();
+        settings.setValue("nDisplayUnit", nDisplayUnit);
+        emit displayUnitChanged(nDisplayUnit);
+    }
 }
 
 bool OptionsModel::getProxySettings(QNetworkProxy& proxy) const
@@ -354,20 +364,16 @@ bool OptionsModel::getProxySettings(QNetworkProxy& proxy) const
     // GUI settings can be overridden with -proxy.
     proxyType curProxy;
     if (GetProxy(NET_IPV4, curProxy)) {
-        if (curProxy.second == 5) {
-            proxy.setType(QNetworkProxy::Socks5Proxy);
-            proxy.setHostName(QString::fromStdString(curProxy.first.ToStringIP()));
-            proxy.setPort(curProxy.first.GetPort());
+        proxy.setType(QNetworkProxy::Socks5Proxy);
+        proxy.setHostName(QString::fromStdString(curProxy.ToStringIP()));
+        proxy.setPort(curProxy.GetPort());
 
-            return true;
-        }
-        else
-            return false;
+        return true;
     }
     else
         proxy.setType(QNetworkProxy::NoProxy);
 
-    return true;
+    return false;
 }
 
 void OptionsModel::setRestartRequired(bool fRequired)

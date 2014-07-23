@@ -231,6 +231,7 @@ RPCConsole::RPCConsole(QWidget *parent) :
 
     startExecutor();
     setTrafficGraphRange(INITIAL_TRAFFIC_GRAPH_MINS);
+
     ui->detailWidget->hide();
 
     clear();
@@ -316,7 +317,7 @@ void RPCConsole::setClientModel(ClientModel *model)
         ui->buildDate->setText(model->formatBuildDate());
         ui->startupTime->setText(model->formatClientStartupTime());
 
-        ui->networkName->setText(model->getNetworkName());
+        ui->networkName->setText(QString::fromStdString(Params().NetworkIDString()));
     }
 }
 
@@ -415,8 +416,8 @@ void RPCConsole::on_lineEdit_returnPressed()
     {
         message(CMD_REQUEST, cmd);
         emit cmdRequest(cmd);
-        // Truncate history from current position
-        history.erase(history.begin() + historyPtr, history.end());
+        // Remove command, if already in history
+        history.removeOne(cmd);
         // Append command to history
         history.append(cmd);
         // Enforce maximum history size
@@ -471,6 +472,10 @@ void RPCConsole::on_tabWidget_currentChanged(int index)
     if(ui->tabWidget->widget(index) == ui->tab_console)
     {
         ui->lineEdit->setFocus();
+    }
+    else if(ui->tabWidget->widget(index) == ui->tab_peers)
+    {
+        initPeerTable();
     }
 }
 
@@ -581,7 +586,7 @@ void RPCConsole::peerLayoutChanged()
     if (fUnselect && selectedRow >= 0)
     {
         ui->peerWidget->selectionModel()->select(QItemSelection(selectedModelIndex.first(), selectedModelIndex.last()),
-                                                 QItemSelectionModel::Deselect);
+            QItemSelectionModel::Deselect);
     }
 
     if (fReselect)
@@ -647,17 +652,10 @@ void RPCConsole::updateNodeDetail(const CNodeCombinedStats *combinedStats)
         ui->peerBanScore->setText(tr("Fetching..."));
 }
 
-// We override the virtual resizeEvent of the QWidget to adjust tables column
-// sizes as the tables width is proportional to the dialogs width.
-void RPCConsole::resizeEvent(QResizeEvent *event)
+void RPCConsole::initPeerTable()
 {
-    QWidget::resizeEvent(event);
-    columnResizingFixer->stretchColumnWidth(PeerTableModel::Address);
-}
-
-void RPCConsole::showEvent(QShowEvent *event)
-{
-    QWidget::showEvent(event);
+    if (!clientModel)
+        return;
 
     // peerWidget needs a resize in case the dialog has non-default geometry
     columnResizingFixer->stretchColumnWidth(PeerTableModel::Address);
@@ -666,9 +664,31 @@ void RPCConsole::showEvent(QShowEvent *event)
     clientModel->getPeerTableModel()->startAutoRefresh(1000);
 }
 
+// We override the virtual resizeEvent of the QWidget to adjust tables column
+// sizes as the tables width is proportional to the dialogs width.
+void RPCConsole::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+
+    if (!clientModel)
+        return;
+
+    columnResizingFixer->stretchColumnWidth(PeerTableModel::Address);
+}
+
+void RPCConsole::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+
+    initPeerTable();
+}
+
 void RPCConsole::hideEvent(QHideEvent *event)
 {
     QWidget::hideEvent(event);
+
+    if (!clientModel)
+        return;
 
     // stop PeerTableModel auto refresh
     clientModel->getPeerTableModel()->stopAutoRefresh();
