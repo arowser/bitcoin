@@ -10,6 +10,20 @@ Modifications
 
 This branch is based on the current [master](https://github.com/bitcoin/bitcoin/tree/master) and includes the required changes to allow extended transaction lookups based on an address.
 
+More feature
+
+ -limitdownloadblocks
+ -outboundconnections
+
+ listalltransactions
+ listallunspent
+ getallbalance
+ gettxposition
+
+### TODO
+
+ ZMQ support 
+ 
 ### Setup and configuration
 
 Use `-addrindex=1` to enable address-based indexing of transactions.
