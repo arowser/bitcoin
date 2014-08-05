@@ -430,6 +430,7 @@ void ThreadGetMyExternalIP()
     }
 }
 
+static const int MAX_OUTBOUND_CONNECTIONS = 8;
 
 
 

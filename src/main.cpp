@@ -49,6 +49,7 @@ bool fTxIndex = false;
 bool fIsBareMultisigStd = true;
 bool fAddrIndex = false;
 unsigned int nCoinCacheSize = 5000;
+int32_t nLimitDownloadBlocks = 2147483647;
 
 /** Fees smaller than this (in satoshi) are considered zero fee (for relaying and mining) */
 CFeeRate minRelayTxFee = CFeeRate(1000);
