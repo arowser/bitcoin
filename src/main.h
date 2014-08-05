@@ -91,7 +91,6 @@ extern CWaitableCriticalSection csBestBlock;
 extern CConditionVariable cvBlockChange;
 extern bool fImporting;
 extern bool fReindex;
-extern bool fBenchmark;
 extern int nScriptCheckThreads;
 extern bool fTxIndex;
 extern bool fIsBareMultisigStd;
@@ -1069,7 +1068,7 @@ public:
     CBlockIndex *FindFork(const CBlockLocator &locator) const;
 
     /** Find the last common block between this chain and a block index entry. */
-    CBlockIndex *FindFork(CBlockIndex *pindex) const;
+    const CBlockIndex *FindFork(const CBlockIndex *pindex) const;
 };
 
 /** The currently-connected chain of blocks. */

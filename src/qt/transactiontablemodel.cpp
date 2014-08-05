@@ -346,7 +346,7 @@ QString TransactionTableModel::lookupAddress(const std::string &address, bool to
     {
         description += label + QString(" ");
     }
-    if(label.isEmpty() || walletModel->getOptionsModel()->getDisplayAddresses() || tooltip)
+    if(label.isEmpty() || tooltip)
     {
         description += QString("(") + QString::fromStdString(address) + QString(")");
     }
@@ -577,7 +577,7 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
     case ConfirmedRole:
         return rec->status.countsForBalance;
     case FormattedAmountRole:
-	// Used for copy/export, so don't include separators
+        // Used for copy/export, so don't include separators
         return formatTxAmount(rec, false, BitcoinUnits::separatorNever);
     case StatusRole:
         return rec->status.status;

@@ -34,6 +34,7 @@ LIBBITCOIN_COMMON=libbitcoin_common.a
 LIBBITCOIN_CLI=libbitcoin_cli.a
 LIBBITCOIN_UTIL=libbitcoin_util.a
 LIBBITCOIN_CRYPTO=crypto/libbitcoin_crypto.a
+LIBBITCOIN_UNIVALUE=univalue/libbitcoin_univalue.a
 LIBBITCOINQT=qt/libbitcoinqt.a
 
 noinst_LIBRARIES = \
@@ -41,6 +42,7 @@ noinst_LIBRARIES = \
   libbitcoin_common.a \
   libbitcoin_cli.a \
   libbitcoin_util.a \
+  univalue/libbitcoin_univalue.a \
   crypto/libbitcoin_crypto.a
 if ENABLE_WALLET
 BITCOIN_INCLUDES += $(BDB_CPPFLAGS)
@@ -58,6 +60,8 @@ if BUILD_BITCOIN_CLI
   bin_PROGRAMS += bitcoin-cli
 endif
 
+bin_PROGRAMS += bitcoin-tx
+
 .PHONY: FORCE
 # bitcoin core #
 BITCOIN_CORE_H = \
@@ -68,6 +72,7 @@ BITCOIN_CORE_H = \
   bloom.h \
   chainparams.h \
   chainparamsbase.h \
+  chainparamsseeds.h \
   checkpoints.h \
   checkqueue.h \
   clientversion.h \
@@ -75,6 +80,7 @@ BITCOIN_CORE_H = \
   coins.h \
   compat.h \
   core.h \
+  core_io.h \
   crypter.h \
   db.h \
   hash.h \
@@ -177,6 +183,13 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha1.h \
   crypto/ripemd160.h
 
+# univalue JSON library
+univalue_libbitcoin_univalue_a_SOURCES = \
+  univalue/univalue.cpp \
+  univalue/univalue_read.cpp \
+  univalue/univalue_write.cpp \
+  univalue/univalue.h
+
 # common: shared between bitcoind, and bitcoin-qt and non-server tools
 libbitcoin_common_a_CPPFLAGS = $(BITCOIN_INCLUDES)
 libbitcoin_common_a_SOURCES = \
@@ -185,6 +198,8 @@ libbitcoin_common_a_SOURCES = \
   chainparams.cpp \
   coins.cpp \
   core.cpp \
+  core_read.cpp \
+  core_write.cpp \
   hash.cpp \
   key.cpp \
   keystore.cpp \
@@ -226,6 +241,7 @@ nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 bitcoind_LDADD = \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_COMMON) \
+  $(LIBBITCOIN_UNIVALUE) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBLEVELDB) \
@@ -262,6 +278,17 @@ if USE_LIBSECP256K1
   bitcoin_cli_LDADD += secp256k1/libsecp256k1.la
 endif
 bitcoin_cli_CPPFLAGS = $(BITCOIN_INCLUDES)
+#
+
+# bitcoin-tx binary #
+bitcoin_tx_LDADD = \
+  $(LIBBITCOIN_UNIVALUE) \
+  $(LIBBITCOIN_COMMON) \
+  $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_CRYPTO) \
+  $(BOOST_LIBS)
+bitcoin_tx_SOURCES = bitcoin-tx.cpp
+bitcoin_tx_CPPFLAGS = $(BITCOIN_INCLUDES)
 #
 
 if TARGET_WINDOWS
