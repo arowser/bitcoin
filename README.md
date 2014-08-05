@@ -1,9 +1,82 @@
-Bitcoin Core integration/staging tree
+Bitcoin Core address-indexed/extended
 =====================================
 
 https://www.bitcoin.org
 
 Copyright (c) 2009-2014 Bitcoin Core Developers
+
+Modifications
+-------------
+
+This branch is based on the current [master](https://github.com/bitcoin/bitcoin/tree/master) and includes the required changes to allow extended transaction lookups based on an address.
+
+### Setup and configuration
+
+Use `-addrindex=1` to enable address-based indexing of transactions.
+Reindexing via `-reindex` is required the first time.
+
+### RPC commands
+
+The following new query commands are available:
+
+```
+> listalltransactions "address" (verbose skip count includeorphans)
+
+Description:
+Returns array of all transactions associated with address.
+
+Arguments:
+1. address (string, required) The Bitcoin address
+2. verbose (numeric, optional, default=0) If 0, return only transaction hex
+3. skip (numeric, optional, default=0) The number of transactions to skip
+4. count (numeric, optional, default=100) The number of transactions to return
+5. includeorphans (numeric, optional, default=0) If 1, include orphaned transactions
+```
+```
+> listallunspent "address" (verbose minconf maxconf maxreqsigs)
+
+Description:
+Returns array of unspent transaction outputs with between minconf and maxconf (inclusive) 
+confirmations spendable by the provided address whereby maximal maxreqsigs signatures are 
+required to redeem the output.
+
+Arguments:
+1. address (string, required) The Bitcoin address
+2. verbose (numeric, optional, default=0) If 0, exclude reqSigs, addresses, 
+     scriptPubKey (asm, hex), blockhash, blocktime, blockheight
+3. minconf (numeric, optional, default=1) The minimum confirmations to filter
+4. maxconf (numeric, optional, default=9999999) The maximum confirmations to filter
+5. maxreqsigs (numeric, optional, default=1) The number of signatures required to spend the output
+```
+```
+> getallbalance "address" (minconf maxreqsigs)
+
+Description:
+Returns the sum of spendable transaction outputs by address with at least minconf 
+confirmations whereby maximal maxreqsigs signatures are allowed to be required to 
+redeem an output.
+
+Arguments:
+1. address (string, required) The Bitcoin address
+2. minconf (numeric, optional, default=1) The minimum confirmations to filter
+3. maxreqsigs (numeric, optional, default=1) The number of signatures required to spend an output
+```
+```
+> gettxposition "txid"
+
+Returns information related to the position of transaction.
+
+Arguments:
+1. txid (string, required) The transaction id
+            
+Result:
+{
+  "txid" : "hash",      (string) The transaction id (same as provided)
+  "blockhash" : "hash", (string) The block hash
+  "blockheight" : n,    (numeric) The block height (if orphaned: -1, unconfirmed: 0)
+  "position": n         (numeric) The position of transaction within block (if unconfirmed: -1)
+}
+```
 
 What is Bitcoin?
 ----------------

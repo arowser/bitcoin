@@ -242,6 +242,12 @@ static const CRPCCommand vRPCCommands[] =
     { "gettxoutsetinfo",        &gettxoutsetinfo,        true,      false,      false },
     { "verifychain",            &verifychain,            true,      false,      false },
 
+    /* Address-indexed */
+    { "gettxposition",          &gettxposition,          false,     false,      false },
+    { "listalltransactions",    &listalltransactions,    false,     false,      false },
+    { "listallunspent",         &listallunspent,         false,     false,      false },
+    { "getallbalance",          &getallbalance,          false,     false,      false },
+
     /* Mining */
     { "getblocktemplate",       &getblocktemplate,       true,      false,      false },
     { "getmininginfo",          &getmininginfo,          true,      false,      false },
