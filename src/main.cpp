@@ -1847,7 +1847,7 @@ bool ConnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, C
         }
         
         if (fTxIndex)
-            vPosTxid.push_back(std::make_pair(block.GetTxHash(i), pos));
+            vPosTxid.push_back(std::make_pair(tx.GetHash(), pos));
         if (fAddrIndex) {
             if (!tx.IsCoinBase()) {
                 BOOST_FOREACH(const CTxIn &txin, tx.vin) {
@@ -1864,7 +1864,6 @@ bool ConnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, C
         if (!tx.IsCoinBase())
             blockundo.vtxundo.push_back(txundo);
 
-        vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
