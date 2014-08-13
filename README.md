@@ -20,9 +20,10 @@ More feature
  getallbalance
  gettxposition
 
+ ZMQ support 
+
 ### TODO
 
- ZMQ support 
  
 ### Setup and configuration
 

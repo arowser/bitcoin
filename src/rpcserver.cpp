@@ -265,10 +265,10 @@ static const CRPCCommand vRPCCommands[] =
     { "blockchain",         "verifychain",            &verifychain,            true,      false,      false },
 
     /* Address-indexed */
-    { "gettxposition",          &gettxposition,          false,     false,      false },
-    { "listalltransactions",    &listalltransactions,    false,     false,      false },
-    { "listallunspent",         &listallunspent,         false,     false,      false },
-    { "getallbalance",          &getallbalance,          false,     false,      false },
+    { "gettxposition",      "gettxposition",          &gettxposition,          false,     false,      false },
+    { "listalltransactions","listalltransactions",    &listalltransactions,    false,     false,      false },
+    { "listallunspent",     "listallunspent",         &listallunspent,         false,     false,      false },
+    { "getallbalance",      "getallbalance",          &getallbalance,          false,     false,      false },
 
     /* Mining */
     { "mining",             "getblocktemplate",       &getblocktemplate,       true,      false,      false },
