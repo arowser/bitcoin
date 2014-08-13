@@ -17,6 +17,7 @@
 #include "txmempool.h"
 #include "ui_interface.h"
 #include "util.h"
+#include "zmqports.h"
 
 #include <sstream>
 
@@ -2613,6 +2614,9 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
     } catch(std::runtime_error &e) {
         return state.Abort(_("System error: ") + e.what());
     }
+
+    if (fZMQPub)
+      ZMQPublishBlock(block);
 
     return true;
 }
