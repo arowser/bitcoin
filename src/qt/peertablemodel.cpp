@@ -75,8 +75,14 @@ public:
         }
 
         // Try to retrieve the CNodeStateStats for each node.
-        BOOST_FOREACH(CNodeCombinedStats &stats, cachedNodeStats)
-            stats.fNodeStateStatsAvailable = GetNodeStateStats(stats.nodeStats.nodeid, stats.nodeStateStats);
+        {
+            TRY_LOCK(cs_main, lockMain);
+            if (lockMain)
+            {
+                BOOST_FOREACH(CNodeCombinedStats &stats, cachedNodeStats)
+                    stats.fNodeStateStatsAvailable = GetNodeStateStats(stats.nodeStats.nodeid, stats.nodeStateStats);
+            }
+        }
 
         if (sortColumn >= 0)
             // sort cacheNodeStats (use stable sort to prevent rows jumping around unneceesarily)
@@ -152,8 +158,7 @@ QVariant PeerTableModel::data(const QModelIndex &index, int role) const
 
     CNodeCombinedStats *rec = static_cast<CNodeCombinedStats*>(index.internalPointer());
 
-    if(role == Qt::DisplayRole)
-    {
+    if (role == Qt::DisplayRole) {
         switch(index.column())
         {
         case Address:
@@ -163,7 +168,11 @@ QVariant PeerTableModel::data(const QModelIndex &index, int role) const
         case Ping:
             return GUIUtil::formatPingTime(rec->nodeStats.dPingTime);
         }
+    } else if (role == Qt::TextAlignmentRole) {
+        if (index.column() == Ping)
+            return (int)(Qt::AlignRight | Qt::AlignVCenter);
     }
+
     return QVariant();
 }
 
