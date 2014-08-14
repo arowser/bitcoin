@@ -75,6 +75,8 @@ static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 128;
 static const unsigned int BLOCK_DOWNLOAD_TIMEOUT = 60;
 /** Minimum amount of blocks to keep unpruned, needed to afford deep reorganizations. */
 static const unsigned int MIN_BLOCKS_TO_KEEP = 288;
+/** Start autopruning after this height. */
+static const signed int AUTOPRUNE_AFTER_HEIGHT = 100000;
 
 /** "reject" message codes **/
 static const unsigned char REJECT_MALFORMED = 0x01;
@@ -109,7 +111,7 @@ extern bool fTxIndex;
 extern bool fIsBareMultisigStd;
 extern unsigned int nCoinCacheSize;
 extern CFeeRate minRelayTxFee;
-extern bool fPruned;
+extern bool fPrune;
 
 // Minimum disk space required - used in CheckDiskSpace()
 static const uint64_t nMinDiskSpace = 52428800;
@@ -158,7 +160,7 @@ bool InitBlockIndex();
 /** Load the block tree and coins database from disk */
 bool LoadBlockIndex();
 /** Check all required block files are present */
-bool CheckBlockFiles();
+bool CheckAndPruneBlockFiles();
 /** Unload database information */
 void UnloadBlockIndex();
 /** Print the loaded block tree */

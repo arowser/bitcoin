@@ -49,7 +49,7 @@ bool fReindex = false;
 bool fTxIndex = false;
 bool fIsBareMultisigStd = true;
 unsigned int nCoinCacheSize = 5000;
-bool fPruned = false;
+bool fPrune = false;
 
 /** Fees smaller than this (in satoshi) are considered zero fee (for relaying and mining) */
 CFeeRate minRelayTxFee = CFeeRate(1000);
@@ -2187,6 +2187,8 @@ bool FindBlockPos(CValidationState &state, CDiskBlockPos &pos, unsigned int nAdd
         unsigned int nOldChunks = (pos.nPos + BLOCKFILE_CHUNK_SIZE - 1) / BLOCKFILE_CHUNK_SIZE;
         unsigned int nNewChunks = (infoLastBlockFile.nSize + BLOCKFILE_CHUNK_SIZE - 1) / BLOCKFILE_CHUNK_SIZE;
         if (nNewChunks > nOldChunks) {
+            if (!CheckAndPruneBlockFiles())
+                return state.Abort("Error checking block files");
             if (CheckDiskSpace(nNewChunks * BLOCKFILE_CHUNK_SIZE - pos.nPos)) {
                 FILE *file = OpenBlockFile(pos);
                 if (file) {
@@ -2826,6 +2828,16 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos &pos, const char
     return GetDataDir() / "blocks" / strprintf("%s%05u.dat", prefix, pos.nFile);
 }
 
+bool RemoveBlockFile(const CDiskBlockPos& pos)
+{
+    return boost::filesystem::remove(GetBlockPosFilename(pos, "blk"));
+}
+
+bool RemoveUndoFile(const CDiskBlockPos& pos)
+{
+    return boost::filesystem::remove(GetBlockPosFilename(pos, "rev"));
+}
+
 CBlockIndex * InsertBlockIndex(uint256 hash)
 {
     if (hash == 0)
@@ -2902,20 +2914,31 @@ bool static LoadBlockIndexDB()
     return true;
 }
 
-bool CheckBlockFiles()
+bool CheckAndPruneBlockFiles()
 {
     // Check presence of essential data
-    int nKeepBlksFromHeight = fPruned ? (max((int)(chainActive.Height() - MIN_BLOCKS_TO_KEEP), 0)) : 0;
+    int nKeepBlksFromHeight = fPrune ? (max((int)(chainActive.Height() - MIN_BLOCKS_TO_KEEP), 0)) : 0;
     LogPrintf("Checking all required data for active chain is available (mandatory from height %i to %i)\n", nKeepBlksFromHeight, max(chainActive.Height(), 0));
     map<int, bool> mapBlkDataFileReadable, mapBlkUndoFileReadable;
     set<int> setBlockDataPruned, setBlockUndoPruned;
     for (CBlockIndex* pindex = chainActive.Tip(); pindex && pindex->pprev; pindex = pindex->pprev) {
         CDiskBlockPos pos(pindex->nFile, 0);
+        CBlockFileInfo info;
         if (pindex->nStatus & BLOCK_HAVE_DATA) {
             if (!mapBlkDataFileReadable.count(pindex->nFile)) {
-                if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION))
-                    mapBlkDataFileReadable[pindex->nFile] = true;
-                else {
+                if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION)) {
+                    pblocktree->ReadBlockFileInfo(pindex->nFile, info);
+                    if (chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && (int)info.nHeightLast < nKeepBlksFromHeight) {
+                        if (RemoveBlockFile(pos)) {
+                            LogPrintf("File blk%05u.dat removed\n", pindex->nFile);
+                            mapBlkDataFileReadable[pindex->nFile] = false;
+                        } else {
+                            LogPrintf("Error removing file blk%05u.dat\n", pindex->nFile);
+                            mapBlkDataFileReadable[pindex->nFile] = true;
+                        }
+                    } else
+                        mapBlkDataFileReadable[pindex->nFile] = true;
+                } else {
                     if (pindex->nHeight > nKeepBlksFromHeight)
                         return false;
                     else
@@ -2930,9 +2953,19 @@ bool CheckBlockFiles()
         }
         if (pindex->nStatus & BLOCK_HAVE_UNDO) {
             if (!mapBlkUndoFileReadable.count(pindex->nFile)) {
-                if (CAutoFile(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION))
-                    mapBlkUndoFileReadable[pindex->nFile] = true;
-                else {
+                if (CAutoFile(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION)) {
+                    pblocktree->ReadBlockFileInfo(pindex->nFile, info);
+                    if (chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && (int)info.nHeightLast < nKeepBlksFromHeight) {
+                        if (RemoveUndoFile(pos)) {
+                            LogPrintf("File rev%05u.dat removed\n", pindex->nFile);
+                            mapBlkUndoFileReadable[pindex->nFile] = false;
+                        } else {
+                            LogPrintf("Error removing file rev%05u.dat\n", pindex->nFile);
+                            mapBlkUndoFileReadable[pindex->nFile] = true;
+                        }
+                    } else
+                        mapBlkUndoFileReadable[pindex->nFile] = true;
+                } else {
                     if (pindex->nHeight > nKeepBlksFromHeight)
                         return false;
                     else
@@ -3386,7 +3419,7 @@ void static ProcessGetData(CNode* pfrom)
                     // Send block from disk
                     CBlock block;
                     if (!ReadBlockFromDisk(block, (*mi).second)) {
-                        if (fPruned) {
+                        if (fPrune) {
                             // Disconnect peers asking us for blocks we don't have, not to stall their IBD. They shouldn't ask as we unset NODE_NETWORK on this mode.
                             LogPrintf("cannot load block from disk, answering notfound, and disconnecting peer:%d\n", pfrom->id);
                             vNotFound.push_back(inv);
