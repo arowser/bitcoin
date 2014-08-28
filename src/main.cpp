@@ -49,7 +49,7 @@ bool fReindex = false;
 bool fTxIndex = false;
 bool fIsBareMultisigStd = true;
 unsigned int nCoinCacheSize = 5000;
-bool fPrune = false;
+int nPrune = 0;
 
 /** Fees smaller than this (in satoshi) are considered zero fee (for relaying and mining) */
 CFeeRate minRelayTxFee = CFeeRate(1000);
@@ -2954,12 +2954,27 @@ int LastBlockInFile(int nFile)
 bool CheckAndPruneBlockFiles()
 {
     // Check presence of essential data
-    int nKeepBlksFromHeight = fPrune ? (max((int)(chainActive.Height() - MIN_BLOCKS_TO_KEEP), 0)) : 0;
-    LogPrintf("Checking all required data for active chain is available (mandatory from height %i to %i)\n", nKeepBlksFromHeight, max(chainActive.Height(), 0));
+    int nKeepMinBlksFromHeight = nPrune ? (max((int)(chainActive.Height() - MIN_BLOCKS_TO_KEEP), 0)) : 0;
+    int nAutoPruneUpToHeight = 0;
+    if (nPrune) {
+        LogPrintf("Autoprune active.\n");
+        if (nPrune > 0) {
+            LogPrintf("Autoprune configured to prune up to height: %i\n", nPrune);
+            nAutoPruneUpToHeight = min(nKeepMinBlksFromHeight, nPrune);
+        } else if (nPrune < 0) {
+            LogPrintf("Autoprune configured to keep the last: %i blocks\n", -nPrune);
+            nAutoPruneUpToHeight = min((chainActive.Height() + nPrune), nKeepMinBlksFromHeight);
+        }
+        if (chainActive.Height() < AUTOPRUNE_AFTER_HEIGHT)
+            LogPrintf("Can't start autopruning until height %i\n", AUTOPRUNE_AFTER_HEIGHT);
+        else
+            LogPrintf("Autopruning up to height %i\n", nAutoPruneUpToHeight);
+    }
+    LogPrintf("Checking all required data for active chain is available (mandatory from height %i to %i)\n", nKeepMinBlksFromHeight, max(chainActive.Height(), 0));
     map<int, bool> mapBlkDataFileReadable, mapBlkUndoFileReadable;
     set<int> setRequiredDataFilesReadable, setBlockDataPruned, setBlockUndoPruned;
     for (CBlockIndex* pindex = chainActive.Tip(); pindex && pindex->pprev; pindex = pindex->pprev) {
-        if (pindex->nHeight > nKeepBlksFromHeight) {
+        if (pindex->nHeight > nKeepMinBlksFromHeight) {
             if (!(pindex->nStatus & BLOCK_HAVE_DATA) || !(pindex->nStatus & BLOCK_HAVE_UNDO)) { // Fail immediately if required data is missing
                 LogPrintf("Error: Missing data for required block: %i\n", pindex->nHeight);
                 return false;
@@ -2974,7 +2989,7 @@ bool CheckAndPruneBlockFiles()
             if (pindex->nStatus & BLOCK_HAVE_DATA) {
                 if (!mapBlkDataFileReadable.count(pindex->nFile)) {
                     mapBlkDataFileReadable[pindex->nFile] = BlockFileReadable(pindex->nFile);
-                    if (mapBlkDataFileReadable.find(pindex->nFile)->second && chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && LastBlockInFile(pindex->nFile) < nKeepBlksFromHeight) { // Try to prune pruneable data
+                    if (mapBlkDataFileReadable.find(pindex->nFile)->second && chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && LastBlockInFile(pindex->nFile) < nAutoPruneUpToHeight) { // Try to prune pruneable data
                         if (RemoveBlockFile(pindex->nFile))
                             mapBlkDataFileReadable[pindex->nFile] = false;
                     }
@@ -2983,7 +2998,7 @@ bool CheckAndPruneBlockFiles()
             if (pindex->nStatus & BLOCK_HAVE_UNDO) {
                 if (!mapBlkUndoFileReadable.count(pindex->nFile)) {
                     mapBlkUndoFileReadable[pindex->nFile] = UndoFileReadable(pindex->nFile);
-                    if (mapBlkUndoFileReadable.find(pindex->nFile)->second && chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && LastBlockInFile(pindex->nFile) < nKeepBlksFromHeight) { // Try to prune pruneable data
+                    if (mapBlkUndoFileReadable.find(pindex->nFile)->second && chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && LastBlockInFile(pindex->nFile) < nAutoPruneUpToHeight) { // Try to prune pruneable data
                         if (RemoveUndoFile(pindex->nFile))
                             mapBlkUndoFileReadable[pindex->nFile] = false;
                     }
@@ -3431,7 +3446,7 @@ void static ProcessGetData(CNode* pfrom)
                     // Send block from disk
                     CBlock block;
                     if (!ReadBlockFromDisk(block, (*mi).second)) {
-                        if (fPrune) {
+                        if (nPrune) {
                             // Disconnect peers asking us for blocks we don't have, not to stall their IBD. They shouldn't ask as we unset NODE_NETWORK on this mode.
                             LogPrintf("cannot load block from disk, answering notfound, and disconnecting peer:%d\n", pfrom->id);
                             vNotFound.push_back(inv);
