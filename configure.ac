@@ -109,10 +109,10 @@ AC_ARG_ENABLE([glibc-back-compat],
   [use_glibc_compat=no])
 
 AC_ARG_ENABLE([zmq],
-  [AC_HELP_STRING([--disable-zmq],
+  [AC_HELP_STRING([--enable-zmq],
   [Disable ZMQ notifications])],
-  [use_zmq=no],
-  [use_zmq=yes])
+  [use_zmq=yes],
+  [use_zmq=no])
 
 AC_ARG_WITH([protoc-bindir],[AS_HELP_STRING([--with-protoc-bindir=BIN_DIR],[specify protoc bin path])], [protoc_bin_path=$withval], [])
 
