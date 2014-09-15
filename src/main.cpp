@@ -2828,14 +2828,25 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos &pos, const char
     return GetDataDir() / "blocks" / strprintf("%s%05u.dat", prefix, pos.nFile);
 }
 
-bool RemoveBlockFile(const CDiskBlockPos& pos)
+bool RemoveDiskFile(int nFile, const char* prefix)
 {
-    return boost::filesystem::remove(GetBlockPosFilename(pos, "blk"));
+    CDiskBlockPos pos(nFile, 0);
+    if (boost::filesystem::remove(GetBlockPosFilename(pos, prefix))) {
+        LogPrintf("File %s removed\n", GetBlockPosFilename(pos, prefix));
+        return true;
+    }
+    LogPrintf("Error removing file %s\n", GetBlockPosFilename(pos, prefix));
+    return false;
 }
 
-bool RemoveUndoFile(const CDiskBlockPos& pos)
+bool RemoveBlockFile(int nFile)
 {
-    return boost::filesystem::remove(GetBlockPosFilename(pos, "rev"));
+    return RemoveDiskFile(nFile, "blk");
+}
+
+bool RemoveUndoFile(int nFile)
+{
+    return RemoveDiskFile(nFile, "rev");
 }
 
 CBlockIndex * InsertBlockIndex(uint256 hash)
@@ -2914,68 +2925,69 @@ bool static LoadBlockIndexDB()
     return true;
 }
 
+bool BlockFileReadable(int nFile)
+{
+    CDiskBlockPos pos(nFile, 0);
+    return CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION) ? true : false;
+}
+
+bool UndoFileReadable(int nFile)
+{
+    CDiskBlockPos pos(nFile, 0);
+    return CAutoFile(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION) ? true : false;
+}
+
+bool DataFilesReadable(int nFile)
+{
+    if (BlockFileReadable(nFile) && UndoFileReadable(nFile))
+        return true;
+    return false;
+}
+
+int LastBlockInFile(int nFile)
+{
+    CBlockFileInfo info;
+    pblocktree->ReadBlockFileInfo(nFile, info);
+    return info.nHeightLast;
+}
+
 bool CheckAndPruneBlockFiles()
 {
     // Check presence of essential data
     int nKeepBlksFromHeight = fPrune ? (max((int)(chainActive.Height() - MIN_BLOCKS_TO_KEEP), 0)) : 0;
     LogPrintf("Checking all required data for active chain is available (mandatory from height %i to %i)\n", nKeepBlksFromHeight, max(chainActive.Height(), 0));
     map<int, bool> mapBlkDataFileReadable, mapBlkUndoFileReadable;
-    set<int> setBlockDataPruned, setBlockUndoPruned;
+    set<int> setRequiredDataFilesReadable, setBlockDataPruned, setBlockUndoPruned;
     for (CBlockIndex* pindex = chainActive.Tip(); pindex && pindex->pprev; pindex = pindex->pprev) {
-        CDiskBlockPos pos(pindex->nFile, 0);
-        CBlockFileInfo info;
-        if (pindex->nStatus & BLOCK_HAVE_DATA) {
-            if (!mapBlkDataFileReadable.count(pindex->nFile)) {
-                if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION)) {
-                    pblocktree->ReadBlockFileInfo(pindex->nFile, info);
-                    if (chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && (int)info.nHeightLast < nKeepBlksFromHeight) {
-                        if (RemoveBlockFile(pos)) {
-                            LogPrintf("File blk%05u.dat removed\n", pindex->nFile);
+        if (pindex->nHeight > nKeepBlksFromHeight) {
+            if (!(pindex->nStatus & BLOCK_HAVE_DATA) || !(pindex->nStatus & BLOCK_HAVE_UNDO)) { // Fail immediately if required data is missing
+                LogPrintf("Error: Missing data for required block: %i\n", pindex->nHeight);
+                return false;
+            } else if (!setRequiredDataFilesReadable.count(pindex->nFile)) {
+                if (!DataFilesReadable(pindex->nFile)) { // Or if data is unreadable
+                    LogPrintf("Error: Required file for block: %i is unreadable\n", pindex->nHeight);
+                    return false;
+                } else
+                    setRequiredDataFilesReadable.insert(pindex->nFile);
+            }
+        } else { // Check consistency and pruneability of unrequired data
+            if (pindex->nStatus & BLOCK_HAVE_DATA) {
+                if (!mapBlkDataFileReadable.count(pindex->nFile)) {
+                    mapBlkDataFileReadable[pindex->nFile] = BlockFileReadable(pindex->nFile);
+                    if (mapBlkDataFileReadable.find(pindex->nFile)->second && chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && LastBlockInFile(pindex->nFile) < nKeepBlksFromHeight) { // Try to prune pruneable data
+                        if (RemoveBlockFile(pindex->nFile))
                             mapBlkDataFileReadable[pindex->nFile] = false;
-                        } else {
-                            LogPrintf("Error removing file blk%05u.dat\n", pindex->nFile);
-                            mapBlkDataFileReadable[pindex->nFile] = true;
-                        }
-                    } else
-                        mapBlkDataFileReadable[pindex->nFile] = true;
-                } else {
-                    if (pindex->nHeight > nKeepBlksFromHeight)
-                        return false;
-                    else
-                        mapBlkDataFileReadable[pindex->nFile] = false;
+                    }
                 }
             }
-        } else {
-            if (pindex->nHeight > nKeepBlksFromHeight) {
-                LogPrintf("Error: Missing block data for block: %i\n", pindex->nHeight);
-                return false;
-            }
-        }
-        if (pindex->nStatus & BLOCK_HAVE_UNDO) {
-            if (!mapBlkUndoFileReadable.count(pindex->nFile)) {
-                if (CAutoFile(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION)) {
-                    pblocktree->ReadBlockFileInfo(pindex->nFile, info);
-                    if (chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && (int)info.nHeightLast < nKeepBlksFromHeight) {
-                        if (RemoveUndoFile(pos)) {
-                            LogPrintf("File rev%05u.dat removed\n", pindex->nFile);
+            if (pindex->nStatus & BLOCK_HAVE_UNDO) {
+                if (!mapBlkUndoFileReadable.count(pindex->nFile)) {
+                    mapBlkUndoFileReadable[pindex->nFile] = UndoFileReadable(pindex->nFile);
+                    if (mapBlkUndoFileReadable.find(pindex->nFile)->second && chainActive.Height() > AUTOPRUNE_AFTER_HEIGHT && LastBlockInFile(pindex->nFile) < nKeepBlksFromHeight) { // Try to prune pruneable data
+                        if (RemoveUndoFile(pindex->nFile))
                             mapBlkUndoFileReadable[pindex->nFile] = false;
-                        } else {
-                            LogPrintf("Error removing file rev%05u.dat\n", pindex->nFile);
-                            mapBlkUndoFileReadable[pindex->nFile] = true;
-                        }
-                    } else
-                        mapBlkUndoFileReadable[pindex->nFile] = true;
-                } else {
-                    if (pindex->nHeight > nKeepBlksFromHeight)
-                        return false;
-                    else
-                        mapBlkUndoFileReadable[pindex->nFile] = false;
+                    }
                 }
-            }
-        } else {
-            if (pindex->nHeight > nKeepBlksFromHeight) {
-                LogPrintf("Error: Missing undo data for block: %i\n", pindex->nHeight);
-                return false;
             }
         }
         bool fWrite = false;
