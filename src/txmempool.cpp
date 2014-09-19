@@ -5,6 +5,7 @@
 
 #include "core.h"
 #include "txmempool.h"
+ #include "zmqports.h"
 
 #include <boost/circular_buffer.hpp>
 
@@ -419,6 +420,8 @@ void CTxMemPool::remove(const CTransaction &tx, std::list<CTransaction>& removed
                 if (it == mapNextTx.end())
                     continue;
                 remove(*it->second.ptx, removed, true);
+                if (fZMQPub)
+                  ZMQPublishRemoveTransaction(tx);
             }
         }
         if (mapTx.count(hash))

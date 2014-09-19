@@ -15,7 +15,11 @@ extern bool fZMQPub;
 
 void ZMQInitialize(const std::string &endp);
 void ZMQPublishBlock(const CBlock &blk);
+void ZMQPublishRemoveBlock(const CBlock &blk);
+void ZMQPublishErrorBlock(const CBlock &blk);
 void ZMQPublishTransaction(const CTransaction &tx);
+void ZMQPublishRemoveTransaction(const CTransaction &tx);
+void ZMQPublishErrorTransaction(const CTransaction &tx);
 void ZMQShutdown();
 
 #endif

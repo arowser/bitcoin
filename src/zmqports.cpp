@@ -114,6 +114,38 @@ void ZMQPublishTransaction(const CTransaction &tx)
 #endif
 }
 
+// Called after all transaction relay checks are completed
+void ZMQPublishRemoveTransaction(const CTransaction &tx)
+{
+#if ENABLE_ZMQ
+  if (!zmqPubSocket)
+    return;
+
+  // Serialize transaction
+  CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+  ss.reserve(10000); // FIXME used defined constant
+  ss << tx;
+
+  zmqPublish("TXR", ss);
+#endif
+}
+
+// Called after all transaction relay checks are completed
+void ZMQPublishErrorTransaction(const CTransaction &tx)
+{
+#if ENABLE_ZMQ
+  if (!zmqPubSocket)
+    return;
+
+  // Serialize transaction
+  CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+  ss.reserve(10000); // FIXME used defined constant
+  ss << tx;
+
+  zmqPublish("TXE", ss);
+#endif
+}
+
 // Called after all block checks completed and successfully added to
 // disk index
 void ZMQPublishBlock(const CBlock &blk)
@@ -128,6 +160,38 @@ void ZMQPublishBlock(const CBlock &blk)
   ss << blk;
 
   zmqPublish("BLK", ss);
+#endif
+}
+
+// disk index
+void ZMQPublishErrorBlock(const CBlock &blk)
+{
+#if ENABLE_ZMQ
+  if (!zmqPubSocket)
+    return;
+
+  // Serialize block
+  CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+  ss.reserve(1000000); // FIXME use defined constant
+  ss << blk;
+
+  zmqPublish("BLKE", ss);
+#endif
+}
+
+// disk index
+void ZMQPublishRemoveBlock(const CBlock &blk)
+{
+#if ENABLE_ZMQ
+  if (!zmqPubSocket)
+    return;
+
+  // Serialize block
+  CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+  ss.reserve(1000000); // FIXME use defined constant
+  ss << blk;
+
+  zmqPublish("BLKR", ss);
 #endif
 }
 
