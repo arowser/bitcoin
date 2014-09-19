@@ -14,10 +14,8 @@
 #endif
 
 #include "core.h"
-#include "core_io.h"
 #include "netbase.h"
 #include "json/json_spirit_value.h"
-#include "json/json_spirit_writer_template.h"
 
 using namespace json_spirit;
 using namespace std;
@@ -100,7 +98,6 @@ static void zmqPublish(const char *topic, const CDataStream &ss)
 }
 #endif
 
-extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry);
 // Called after all transaction relay checks are completed
 void ZMQPublishTransaction(const CTransaction &tx)
 {
@@ -111,15 +108,7 @@ void ZMQPublishTransaction(const CTransaction &tx)
   // Serialize transaction
   CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
   ss.reserve(10000); // FIXME used defined constant
-
-  Object result;
-  uint256 hashBlock = 0;
-  string strHex = EncodeHexTx(tx);
-  result.push_back(Pair("hex", strHex));
-  TxToJSON(tx, hashBlock, result);
-  
-  string s = write_string(Value(result), false);
-  ss << s;
+  ss << tx;
 
   zmqPublish("TXN", ss);
 #endif
