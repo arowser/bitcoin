@@ -48,6 +48,81 @@ struct CDiskBlockPos
     bool IsNull() const { return (nFile == -1); }
 };
 
+struct CDiskTxPos : public CDiskBlockPos
+{
+    unsigned int nTxOffset; // after header
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(*(CDiskBlockPos*)this);
+        READWRITE(VARINT(nTxOffset));
+    }
+
+    CDiskTxPos(const CDiskBlockPos &blockIn, unsigned int nTxOffsetIn) : CDiskBlockPos(blockIn.nFile, blockIn.nPos), nTxOffset(nTxOffsetIn) {
+    }
+
+    CDiskTxPos() {
+        SetNull();
+    }
+
+    void SetNull() {
+        CDiskBlockPos::SetNull();
+        nTxOffset = 0;
+    }
+    
+    friend bool operator==(const CDiskTxPos &a, const CDiskTxPos &b) {
+        return (a.nFile == b.nFile && a.nPos == b.nPos && a.nTxOffset == b.nTxOffset);
+    }
+
+    friend bool operator!=(const CDiskTxPos &a, const CDiskTxPos &b) {
+        return !(a == b);
+    }
+
+    friend bool operator<(const CDiskTxPos &a, const CDiskTxPos &b) {
+        return  (a.nFile < b.nFile || (
+                (a.nFile == b.nFile) && (a.nPos < b.nPos || (
+                                        (a.nPos == b.nPos) && (a.nTxOffset < b.nTxOffset)))));
+    }
+};
+
+struct CExtDiskTxPos : public CDiskTxPos
+{
+    unsigned int nHeight;
+
+    IMPLEMENT_SERIALIZE(
+        READWRITE(*(CDiskTxPos*)this);
+        READWRITE(VARINT(nHeight));
+    )
+
+    CExtDiskTxPos(const CDiskTxPos &pos, int nHeightIn) : CDiskTxPos(pos), nHeight(nHeightIn) {
+    }
+ 
+    CExtDiskTxPos() {
+        SetNull();
+    }
+
+    void SetNull() {
+        CDiskTxPos::SetNull();
+        nHeight = 0;
+    }
+
+    friend bool operator==(const CExtDiskTxPos &a, const CExtDiskTxPos &b) {
+        return (a.nHeight == b.nHeight && a.nFile == b.nFile && a.nPos == b.nPos && a.nTxOffset == b.nTxOffset);
+    }
+  
+    friend bool operator!=(const CExtDiskTxPos &a, const CExtDiskTxPos &b) {
+        return !(a == b);
+    }
+
+    friend bool operator<(const CExtDiskTxPos &a, const CExtDiskTxPos &b) {
+        if (a.nHeight < b.nHeight) return true;
+        if (a.nHeight > b.nHeight) return false;
+        return ((const CDiskTxPos)a < (const CDiskTxPos)b);
+    }
+};       
+
 enum BlockStatus {
     BLOCK_VALID_UNKNOWN      =    0,
     BLOCK_VALID_HEADER       =    1, // parsed, version ok, hash satisfies claimed PoW, 1 <= vtx count <= max, timestamp not in future
