@@ -16,6 +16,7 @@
 #include "splashscreen.h"
 #include "utilitydialog.h"
 #include "winshutdownmonitor.h"
+
 #ifdef ENABLE_WALLET
 #include "paymentserver.h"
 #include "walletmodel.h"
@@ -26,6 +27,7 @@
 #include "rpcserver.h"
 #include "ui_interface.h"
 #include "util.h"
+
 #ifdef ENABLE_WALLET
 #include "wallet.h"
 #endif
@@ -34,15 +36,16 @@
 
 #include <boost/filesystem/operations.hpp>
 #include <boost/thread.hpp>
+
 #include <QApplication>
 #include <QDebug>
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QMessageBox>
 #include <QSettings>
+#include <QThread>
 #include <QTimer>
 #include <QTranslator>
-#include <QThread>
 
 #if defined(QT_STATICPLUGIN)
 #include <QtPlugin>
@@ -70,6 +73,7 @@ Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin);
 
 // Declare meta types used for QMetaObject::invokeMethod
 Q_DECLARE_METATYPE(bool*)
+Q_DECLARE_METATYPE(CAmount)
 
 static void InitMessage(const std::string &message)
 {
@@ -338,7 +342,9 @@ void BitcoinApplication::createWindow(bool isaTestNet)
 
 void BitcoinApplication::createSplashScreen(bool isaTestNet)
 {
-    SplashScreen *splash = new SplashScreen(QPixmap(), 0, isaTestNet);
+    SplashScreen *splash = new SplashScreen(0, isaTestNet);
+    // We don't hold a direct pointer to the splash screen after creation, so use
+    // Qt::WA_DeleteOnClose to make sure that the window will be deleted eventually.
     splash->setAttribute(Qt::WA_DeleteOnClose);
     splash->show();
     connect(this, SIGNAL(splashFinished(QWidget*)), splash, SLOT(slotFinish(QWidget*)));
@@ -423,8 +429,6 @@ void BitcoinApplication::initializeResult(int retval)
         }
 #endif
 
-        emit splashFinished(window);
-
         // If -min option passed, start window minimized.
         if(GetBoolArg("-min", false))
         {
@@ -434,6 +438,8 @@ void BitcoinApplication::initializeResult(int retval)
         {
             window->show();
         }
+        emit splashFinished(window);
+
 #ifdef ENABLE_WALLET
         // Now that initialization/startup is done, process any command-line
         // bitcoin: URIs or payment requests:
@@ -504,6 +510,9 @@ int main(int argc, char *argv[])
 
     // Register meta types used for QMetaObject::invokeMethod
     qRegisterMetaType< bool* >();
+    //   Need to pass name here as CAmount is a typedef (see http://qt-project.org/doc/qt-5/qmetatype.html#qRegisterMetaType)
+    //   IMPORTANT if it is no longer a typedef use the normal variant above
+    qRegisterMetaType< CAmount >("CAmount");
 
     /// 3. Application identification
     // must be set before OptionsModel is initialized or translations are loaded,

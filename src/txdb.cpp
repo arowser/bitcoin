@@ -117,13 +117,13 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
        that restriction.  */
     //leveldb::Iterator *pcursor = const_cast<CLevelDBWrapper*>(&db)->NewIterator();
     //CLevelDBIterator *pcursor = db.NewIterator();
-    CLevelDBIterator *pcursor = const_cast<CLevelDBWrapper*>(&db)->NewIterator(); 
+    CLevelDBIterator *pcursor = const_cast<CLevelDBWrapper*>(&db)->NewDbIterator();
     pcursor->Seek('c');
 
     CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
     stats.hashBlock = GetBestBlock();
     ss << stats.hashBlock;
-    int64_t nTotalAmount = 0;
+    CAmount nTotalAmount = 0;
     while (pcursor->Valid()) {
         boost::this_thread::interruption_point();
         std::pair<char, uint256> key;
@@ -166,7 +166,7 @@ bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos>
 }
 
 bool CBlockTreeDB::ReadAddrIndex(uint160 addrid, std::vector<CExtDiskTxPos> &list) {
-    CLevelDBIterator *iter = NewIterator();
+    CLevelDBIterator *iter = NewDbIterator();
     uint64_t lookupid;
     {
         CHashWriter ss(SER_GETHASH, 0);
@@ -214,7 +214,7 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
 
 bool CBlockTreeDB::LoadBlockIndexGuts()
 {
-    CLevelDBIterator *pcursor =  NewIterator();
+    CLevelDBIterator *pcursor =  NewDbIterator();
 
     CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
     ssKeySet << make_pair('b', uint256(0));

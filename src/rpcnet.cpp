@@ -11,6 +11,7 @@
 #include "sync.h"
 #include "timedata.h"
 #include "util.h"
+#include "version.h"
 
 #include <boost/foreach.hpp>
 
@@ -96,7 +97,12 @@ Value getpeerinfo(const Array& params, bool fHelp)
             "    \"inbound\": true|false,     (boolean) Inbound (true) or Outbound (false)\n"
             "    \"startingheight\": n,       (numeric) The starting height (block) of the peer\n"
             "    \"banscore\": n,             (numeric) The ban score\n"
-            "    \"syncnode\": true|false     (boolean) if sync node\n"
+            "    \"synced_headers\": n,       (numeric) The last header we have in common with this peer\n"
+            "    \"synced_blocks\": n,        (numeric) The last block we have in common with this peer\n"
+            "    \"inflight\": [\n"
+            "       n,                        (numeric) The heights of blocks we're currently asking from this peer\n"
+            "       ...\n"
+            "    ]\n"
             "  }\n"
             "  ,...\n"
             "]\n"
@@ -136,9 +142,14 @@ Value getpeerinfo(const Array& params, bool fHelp)
         obj.push_back(Pair("startingheight", stats.nStartingHeight));
         if (fStateStats) {
             obj.push_back(Pair("banscore", statestats.nMisbehavior));
-            obj.push_back(Pair("syncheight", statestats.nSyncHeight));
+            obj.push_back(Pair("synced_headers", statestats.nSyncHeight));
+            obj.push_back(Pair("synced_blocks", statestats.nCommonHeight));
+            Array heights;
+            BOOST_FOREACH(int height, statestats.vHeightInFlight) {
+                heights.push_back(height);
+            }
+            obj.push_back(Pair("inflight", heights));
         }
-        obj.push_back(Pair("syncnode", stats.fSyncNode));
         obj.push_back(Pair("whitelisted", stats.fWhitelisted));
 
         ret.push_back(obj);
@@ -393,6 +404,8 @@ Value getnetworkinfo(const Array& params, bool fHelp)
 
     Object obj;
     obj.push_back(Pair("version",       (int)CLIENT_VERSION));
+    obj.push_back(Pair("subversion",
+        FormatSubVersion(CLIENT_NAME, CLIENT_VERSION, std::vector<string>())));
     obj.push_back(Pair("protocolversion",(int)PROTOCOL_VERSION));
     obj.push_back(Pair("localservices",       strprintf("%016x", nLocalServices)));
     obj.push_back(Pair("timeoffset",    GetTimeOffset()));

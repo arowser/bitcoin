@@ -16,10 +16,12 @@
 #include "util.h"
 
 #include "json/json_spirit_value.h"
+
+#include <openssl/crypto.h>
+
 #ifdef ENABLE_WALLET
 #include <db_cxx.h>
 #endif
-#include <openssl/crypto.h>
 
 #include <QKeyEvent>
 #include <QScrollBar>
@@ -609,7 +611,6 @@ void RPCConsole::updateNodeDetail(const CNodeCombinedStats *stats)
     ui->peerSubversion->setText(QString::fromStdString(stats->nodeStats.cleanSubVer));
     ui->peerDirection->setText(stats->nodeStats.fInbound ? tr("Inbound") : tr("Outbound"));
     ui->peerHeight->setText(QString("%1").arg(stats->nodeStats.nStartingHeight));
-    ui->peerSyncNode->setText(stats->nodeStats.fSyncNode ? tr("Yes") : tr("No"));
 
     // This check fails for example if the lock was busy and
     // nodeStateStats couldn't be fetched.
