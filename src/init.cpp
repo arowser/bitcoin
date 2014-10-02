@@ -46,7 +46,7 @@ using namespace boost;
 using namespace std;
 
 #ifdef ENABLE_WALLET
-CWallet* pwalletMain;
+CWallet* pwalletMain = NULL;
 #endif
 
 #ifdef WIN32
@@ -110,7 +110,7 @@ bool ShutdownRequested()
     return fRequestShutdown;
 }
 
-static CCoinsViewDB *pcoinsdbview;
+static CCoinsViewDB *pcoinsdbview = NULL;
 
 void Shutdown()
 {
@@ -168,8 +168,8 @@ void Shutdown()
 #endif
     UnregisterAllWallets();
 #ifdef ENABLE_WALLET
-    if (pwalletMain)
-        delete pwalletMain;
+    delete pwalletMain;
+    pwalletMain = NULL;
 #endif
     LogPrintf("%s: done\n", __func__);
 }
@@ -726,6 +726,7 @@ bool AppInit2(boost::thread_group& threadGroup)
     fIsBareMultisigStd = GetArg("-permitbaremultisig", true) != 0;
 
     // ********************************************************* Step 4: application initialization: dir lock, daemonize, pidfile, debug log
+
     // Sanity check
     if (!InitSanityCheck())
         return InitError(_("Initialization sanity check failed. Bitcoin Core is shutting down."));

@@ -19,6 +19,7 @@
 #include "ui_interface.h"
 #include "util.h"
 #include "zmqports.h"
+#include "utilmoneystr.h"
 
 #include <sstream>
 
@@ -1489,7 +1490,7 @@ void UpdateCoins(const CTransaction& tx, CValidationState &state, CCoinsViewCach
 bool CScriptCheck::operator()() const {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     if (!VerifyScript(scriptSig, scriptPubKey, *ptxTo, nIn, nFlags))
-        return error("CScriptCheck() : %s VerifySignature failed", ptxTo->GetHash().ToString());
+        return error("CScriptCheck() : %s:%d VerifySignature failed", ptxTo->GetHash().ToString(), nIn);
     return true;
 }
 
@@ -1534,7 +1535,8 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
         }
 
         if (nValueIn < tx.GetValueOut())
-            return state.DoS(100, error("CheckInputs() : %s value in < value out", tx.GetHash().ToString()),
+            return state.DoS(100, error("CheckInputs() : %s value in (%s) < value out (%s)",
+                                        tx.GetHash().ToString(), FormatMoney(nValueIn), FormatMoney(tx.GetValueOut())),
                              REJECT_INVALID, "bad-txns-in-belowout");
 
         // Tally transaction fees
@@ -2454,20 +2456,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     if (!CheckBlockHeader(block, state, fCheckPOW))
         return false;
 
-    // Check the merkle root.
-    bool mutated;
-    uint256 hashMerkleRoot2 = block.BuildMerkleTree(&mutated);
-    if (fCheckMerkleRoot && block.hashMerkleRoot != hashMerkleRoot2)
-        return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"),
-                         REJECT_INVALID, "bad-txnmrklroot", true);
-
-    // Check for merkle tree malleability (CVE-2012-2459): repeating sequences
-    // of transactions in a block without affecting the merkle root of a block,
-    // while still invalidating it.
-    if (mutated)
-        return state.DoS(100, error("CheckBlock() : duplicate transaction"),
-                         REJECT_INVALID, "bad-txns-duplicate", true);
-
     // All potential-corruption validation must be done before we do any
     // transaction validation, as otherwise we may mark the header as invalid
     // because we receive the wrong transactions for it.
@@ -2491,6 +2479,15 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         if (!CheckTransaction(tx, state))
             return error("CheckBlock() : CheckTransaction failed");
 
+    // Check for merkle tree malleability (CVE-2012-2459): repeating sequences
+    // of transactions in a block without affecting the merkle root of a block,
+    // while still invalidating it.
+    bool mutated;
+    uint256 hashMerkleRoot2 = block.BuildMerkleTree(&mutated);
+    if (mutated)
+        return state.DoS(100, error("CheckBlock() : duplicate transaction"),
+                         REJECT_INVALID, "bad-txns-duplicate", true);
+
     unsigned int nSigOps = 0;
     BOOST_FOREACH(const CTransaction& tx, block.vtx)
     {
@@ -2499,6 +2496,11 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     if (nSigOps > MAX_BLOCK_SIGOPS)
         return state.DoS(100, error("CheckBlock() : out-of-bounds SigOpCount"),
                          REJECT_INVALID, "bad-blk-sigops", true);
+
+    // Check merkle root
+    if (fCheckMerkleRoot && block.hashMerkleRoot != hashMerkleRoot2)
+        return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"),
+                         REJECT_INVALID, "bad-txnmrklroot", true);
 
     return true;
 }
