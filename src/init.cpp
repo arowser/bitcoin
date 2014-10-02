@@ -233,6 +233,11 @@ std::string HelpMessage(HelpMessageMode mode)
 #ifndef WIN32
     strUsage += "  -pid=<file>            " + _("Specify pid file (default: bitcoind.pid)") + "\n";
 #endif
+    strUsage += "  -prune=<n>             " + _("Reduce storage requirements by pruning (deleting) old blocks. This mode disables wallet support and is incompatible with -txindex.") + "\n";
+    strUsage += "                         " + _("Warning: Reverting this setting requires re-downloading the entire blockchain!") + "\n";
+    strUsage += "                         " + _("(default: 0 = disable pruning blocks,") + "\n";
+    strUsage += "                         " + _("         >0 = delete up to block height <n>,") + "\n";
+    strUsage += "                         " + _("         <0 = delete all but last <n> blocks)") + "\n";
     strUsage += "  -reindex               " + _("Rebuild block chain index from current blk000??.dat files") + " " + _("on startup") + "\n";
 #if !defined(WIN32)
     strUsage += "  -sysperms              " + _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)") + "\n";
@@ -599,6 +604,19 @@ bool AppInit2(boost::thread_group& threadGroup)
     if (nFD - MIN_CORE_FILEDESCRIPTORS < nMaxConnections)
         nMaxConnections = nFD - MIN_CORE_FILEDESCRIPTORS;
 
+    if (GetArg("-prune", 0)) {
+        if (GetBoolArg("-txindex", false))
+            return InitError(_("Prune mode is incompatible with -txindex."));
+#ifdef ENABLE_WALLET
+        if (!GetBoolArg("-disablewallet", false)) {
+            if (SoftSetBoolArg("-disablewallet", true))
+                LogPrintf("%s : parameter interaction: -prune -> setting -disablewallet=1\n", __func__);
+            else
+                return InitError(_("Can't run with a wallet in prune mode."));
+        }
+#endif
+    }
+
     // ********************************************************* Step 3: parameter-to-internal-flags
 
     fDebug = !mapMultiArgs["-debug"].empty();
@@ -637,6 +655,7 @@ bool AppInit2(boost::thread_group& threadGroup)
     fPrintToConsole = GetBoolArg("-printtoconsole", false);
     fLogTimestamps = GetBoolArg("-logtimestamps", true);
     fLogIPs = GetBoolArg("-logips", false);
+    nPrune = GetArg("-prune", 0);
 #ifdef ENABLE_WALLET
     bool fDisableWallet = GetBoolArg("-disablewallet", false);
 #endif
@@ -968,6 +987,11 @@ bool AppInit2(boost::thread_group& threadGroup)
                     break;
                 }
 
+                if (!CheckAndPruneBlockFiles()) {
+                    strLoadError = _("Error checking required block files");
+                    break;
+                }
+
                 // If the loaded chain has a wrong genesis, bail out immediately
                 // (we're likely using a testnet datadir, or the other way around).
                 if (!mapBlockIndex.empty() && chainActive.Genesis() == NULL)
@@ -1252,6 +1276,8 @@ bool AppInit2(boost::thread_group& threadGroup)
     LogPrintf("mapAddressBook.size() = %u\n",  pwalletMain ? pwalletMain->mapAddressBook.size() : 0);
 #endif
 
+    if (nPrune) // unsetting NODE_NETWORK on prune state
+        nLocalServices &= ~NODE_NETWORK;
     StartNode(threadGroup);
     if (fServer)
         StartRPCThreads();
