@@ -3,7 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef _BITCOIN_ADDRMAN
-#define _BITCOIN_ADDRMAN 1
+#define _BITCOIN_ADDRMAN
 
 #include "netbase.h"
 #include "protocol.h"
@@ -46,13 +46,15 @@ private:
 
 public:
 
-    IMPLEMENT_SERIALIZE(
-        CAddress* pthis = (CAddress*)(this);
-        READWRITE(*pthis);
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(*(CAddress*)this);
         READWRITE(source);
         READWRITE(nLastSuccess);
         READWRITE(nAttempts);
-    )
+    }
 
     void Init()
     {
@@ -266,7 +268,7 @@ public:
     // This format is more complex, but significantly smaller (at most 1.5 MiB), and supports
     // changes to the ADDRMAN_ parameters without breaking the on-disk structure.
     //
-    // We don't use IMPLEMENT_SERIALIZE since the serialization and deserialization code has
+    // We don't use ADD_SERIALIZE_METHODS since the serialization and deserialization code has
     // very little in common.
     template<typename Stream>
     void Serialize(Stream &s, int nType, int nVersionDummy) const
@@ -422,7 +424,7 @@ public:
             Check();
         }
         if (fRet)
-            LogPrint("addrman", "Added %s from %s: %i tried, %i new\n", addr.ToStringIPPort().c_str(), source.ToString(), nTried, nNew);
+            LogPrint("addrman", "Added %s from %s: %i tried, %i new\n", addr.ToStringIPPort(), source.ToString(), nTried, nNew);
         return fRet;
     }
 
@@ -503,4 +505,4 @@ public:
     }
 };
 
-#endif
+#endif // _BITCOIN_ADDRMAN

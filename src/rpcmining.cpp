@@ -3,14 +3,15 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "rpcserver.h"
 #include "chainparams.h"
+#include "core_io.h"
 #include "init.h"
 #include "net.h"
 #include "main.h"
 #include "miner.h"
 #include "pow.h"
-#include "core_io.h"
+#include "rpcserver.h"
+#include "util.h"
 #ifdef ENABLE_WALLET
 #include "db.h"
 #include "wallet.h"
@@ -457,7 +458,7 @@ Value getblocktemplate(const Array& params, bool fHelp)
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
 
     // Update nTime
-    UpdateTime(*pblock, pindexPrev);
+    UpdateTime(pblock, pindexPrev);
     pblock->nNonce = 0;
 
     Array transactions;
@@ -552,7 +553,7 @@ Value submitblock(const Array& params, bool fHelp)
     try {
         ssBlock >> pblock;
     }
-    catch (std::exception &e) {
+    catch (const std::exception &) {
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
     }
 

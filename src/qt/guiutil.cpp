@@ -13,6 +13,8 @@
 #include "init.h"
 #include "main.h"
 #include "protocol.h"
+#include "script/script.h"
+#include "script/standard.h"
 #include "util.h"
 
 #ifdef WIN32
@@ -222,7 +224,7 @@ QString formatBitcoinURI(const SendCoinsRecipient &info)
 bool isDust(const QString& address, qint64 amount)
 {
     CTxDestination dest = CBitcoinAddress(address.toStdString()).Get();
-    CScript script; script.SetDestination(dest);
+    CScript script = GetScriptForDestination(dest);
     CTxOut txOut(amount, script);
     return txOut.IsDust(::minRelayTxFee);
 }
@@ -381,12 +383,6 @@ void openDebugLogfile()
         QDesktopServices::openUrl(QUrl::fromLocalFile(boostPathToQString(pathDebug)));
 }
 
-ToolTipToRichTextFilter::ToolTipToRichTextFilter(int size_threshold, QObject *parent) :
-    QObject(parent), size_threshold(size_threshold)
-{
-
-}
-
 void SubstituteFonts()
 {
 #if defined(Q_OS_MAC)
@@ -405,6 +401,13 @@ void SubstituteFonts()
         QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande");
 #endif
 #endif
+}
+
+ToolTipToRichTextFilter::ToolTipToRichTextFilter(int size_threshold, QObject *parent) :
+    QObject(parent),
+    size_threshold(size_threshold)
+{
+
 }
 
 bool ToolTipToRichTextFilter::eventFilter(QObject *obj, QEvent *evt)
@@ -809,7 +812,7 @@ QString formatDurationStr(int secs)
     return strList.join(" ");
 }
 
-QString formatServicesStr(uint64_t mask)
+QString formatServicesStr(quint64 mask)
 {
     QStringList strList;
 

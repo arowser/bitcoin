@@ -5,8 +5,8 @@
 #ifndef BITCOIN_CHAIN_PARAMS_BASE_H
 #define BITCOIN_CHAIN_PARAMS_BASE_H
 
-#include <vector>
 #include <string>
+#include <vector>
 
 /**
  * CBaseChainParams defines the base parameters (shared between bitcoin-cli and bitcoind)
@@ -55,4 +55,4 @@ bool SelectBaseParamsFromCommandLine();
  */
 bool AreBaseParamsConfigured();
 
-#endif
+#endif // BITCOIN_CHAIN_PARAMS_BASE_H

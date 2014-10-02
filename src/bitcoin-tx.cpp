@@ -3,19 +3,24 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "base58.h"
-#include "util.h"
 #include "core.h"
-#include "main.h"         // for MAX_BLOCK_SIZE
+#include "core_io.h"
 #include "keystore.h"
+#include "main.h" // for MAX_BLOCK_SIZE
+#include "script/script.h"
+#include "script/sign.h"
 #include "ui_interface.h" // for _(...)
 #include "univalue/univalue.h"
-#include "core_io.h"
+#include "util.h"
+#include "utilmoneystr.h"
 
 #include <stdio.h>
+
+#include <boost/algorithm/string.hpp>
 #include <boost/assign/list_of.hpp>
 
-using namespace std;
 using namespace boost::assign;
+using namespace std;
 
 static bool fCreateBlank;
 static map<string,UniValue> registers;
@@ -219,9 +224,8 @@ static void MutateTxAddOutAddr(CMutableTransaction& tx, const string& strInput)
     if (!addr.IsValid())
         throw runtime_error("invalid TX output address");
 
-    // build standard output script via SetDestination()
-    CScript scriptPubKey;
-    scriptPubKey.SetDestination(addr.Get());
+    // build standard output script via GetScriptForDestination()
+    CScript scriptPubKey = GetScriptForDestination(addr.Get());
 
     // construct TxOut, append to transaction output list
     CTxOut txout(value, scriptPubKey);
@@ -233,8 +237,7 @@ static void MutateTxAddOutScript(CMutableTransaction& tx, const string& strInput
     // separate VALUE:SCRIPT in string
     size_t pos = strInput.find(':');
     if ((pos == string::npos) ||
-        (pos == 0) ||
-        (pos == (strInput.size() - 1)))
+        (pos == 0))
         throw runtime_error("TX output missing separator");
 
     // extract and validate VALUE
@@ -283,12 +286,12 @@ static const struct {
     const char *flagStr;
     int flags;
 } sighashOptions[N_SIGHASH_OPTS] = {
-    "ALL", SIGHASH_ALL,
-    "NONE", SIGHASH_NONE,
-    "SINGLE", SIGHASH_SINGLE,
-    "ALL|ANYONECANPAY", SIGHASH_ALL|SIGHASH_ANYONECANPAY,
-    "NONE|ANYONECANPAY", SIGHASH_NONE|SIGHASH_ANYONECANPAY,
-    "SINGLE|ANYONECANPAY", SIGHASH_SINGLE|SIGHASH_ANYONECANPAY,
+    {"ALL", SIGHASH_ALL},
+    {"NONE", SIGHASH_NONE},
+    {"SINGLE", SIGHASH_SINGLE},
+    {"ALL|ANYONECANPAY", SIGHASH_ALL|SIGHASH_ANYONECANPAY},
+    {"NONE|ANYONECANPAY", SIGHASH_NONE|SIGHASH_ANYONECANPAY},
+    {"SINGLE|ANYONECANPAY", SIGHASH_SINGLE|SIGHASH_ANYONECANPAY},
 };
 
 static bool findSighashFlags(int& flags, const string& flagStr)
@@ -416,12 +419,12 @@ static void MutateTxSign(CMutableTransaction& tx, const string& flagStr)
     // Sign what we can:
     for (unsigned int i = 0; i < mergedTx.vin.size(); i++) {
         CTxIn& txin = mergedTx.vin[i];
-        CCoins coins;
-        if (!view.GetCoins(txin.prevout.hash, coins) || !coins.IsAvailable(txin.prevout.n)) {
+        const CCoins* coins = view.AccessCoins(txin.prevout.hash);
+        if (!coins || !coins->IsAvailable(txin.prevout.n)) {
             fComplete = false;
             continue;
         }
-        const CScript& prevPubKey = coins.vout[txin.prevout.n].scriptPubKey;
+        const CScript& prevPubKey = coins->vout[txin.prevout.n].scriptPubKey;
 
         txin.scriptSig.clear();
         // Only sign SIGHASH_SINGLE if there's a corresponding output:
@@ -432,7 +435,7 @@ static void MutateTxSign(CMutableTransaction& tx, const string& flagStr)
         BOOST_FOREACH(const CTransaction& txv, txVariants) {
             txin.scriptSig = CombineSignatures(prevPubKey, mergedTx, i, txin.scriptSig, txv.vin[i].scriptSig);
         }
-        if (!VerifyScript(txin.scriptSig, prevPubKey, mergedTx, i, STANDARD_SCRIPT_VERIFY_FLAGS, 0))
+        if (!VerifyScript(txin.scriptSig, prevPubKey, mergedTx, i, STANDARD_SCRIPT_VERIFY_FLAGS))
             fComplete = false;
     }
 
@@ -501,13 +504,34 @@ static void OutputTx(const CTransaction& tx)
         OutputTxHex(tx);
 }
 
+static string readStdin()
+{
+    char buf[4096];
+    string ret;
+
+    while (!feof(stdin)) {
+        size_t bread = fread(buf, 1, sizeof(buf), stdin);
+        ret.append(buf, bread);
+        if (bread < sizeof(buf))
+            break;
+    }
+
+    if (ferror(stdin))
+        throw runtime_error("error reading stdin");
+
+    boost::algorithm::trim_right(ret);
+
+    return ret;
+}
+
 static int CommandLineRawTx(int argc, char* argv[])
 {
     string strPrint;
     int nRet = 0;
     try {
-        // Skip switches
-        while (argc > 1 && IsSwitchChar(argv[1][0])) {
+        // Skip switches; Permit common stdin convention "-"
+        while (argc > 1 && IsSwitchChar(argv[1][0]) &&
+               (argv[1][1] != 0)) {
             argc--;
             argv++;
         }
@@ -522,6 +546,8 @@ static int CommandLineRawTx(int argc, char* argv[])
 
             // param: hex-encoded bitcoin transaction
             string strHexTx(argv[1]);
+            if (strHexTx == "-")                 // "-" implies standard input
+                strHexTx = readStdin();
 
             if (!DecodeHexTx(txDecodeTmp, strHexTx))
                 throw runtime_error("invalid transaction encoding");
@@ -594,4 +620,3 @@ int main(int argc, char* argv[])
     }
     return ret;
 }
-

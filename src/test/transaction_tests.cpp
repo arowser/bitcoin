@@ -8,7 +8,7 @@
 #include "key.h"
 #include "keystore.h"
 #include "main.h"
-#include "script.h"
+#include "script/script.h"
 #include "core_io.h"
 
 #include <map>
@@ -26,7 +26,7 @@ using namespace boost::algorithm;
 // In script_tests.cpp
 extern Array read_json(const std::string& jsondata);
 
-unsigned int ParseFlags(string strFlags){
+unsigned int ParseScriptFlags(string strFlags){
     unsigned int flags = 0;
     vector<string> words;
     split(words, strFlags, is_any_of(","));
@@ -119,9 +119,9 @@ BOOST_AUTO_TEST_CASE(tx_valid)
                     break;
                 }
 
-                unsigned int verify_flags = ParseFlags(test[2].get_str());
+                unsigned int verify_flags = ParseScriptFlags(test[2].get_str());
                 BOOST_CHECK_MESSAGE(VerifyScript(tx.vin[i].scriptSig, mapprevOutScriptPubKeys[tx.vin[i].prevout],
-                                                 tx, i, verify_flags, 0),
+                                                 tx, i, verify_flags),
                                     strTest);
             }
         }
@@ -192,9 +192,9 @@ BOOST_AUTO_TEST_CASE(tx_invalid)
                     break;
                 }
 
-                unsigned int verify_flags = ParseFlags(test[2].get_str());
+                unsigned int verify_flags = ParseScriptFlags(test[2].get_str());
                 fValid = VerifyScript(tx.vin[i].scriptSig, mapprevOutScriptPubKeys[tx.vin[i].prevout],
-                                      tx, i, verify_flags, 0);
+                                      tx, i, verify_flags);
             }
 
             BOOST_CHECK_MESSAGE(!fValid, strTest);
@@ -248,9 +248,9 @@ SetupDummyInputs(CBasicKeyStore& keystoreRet, CCoinsView & coinsRet)
 
     dummyTransactions[1].vout.resize(2);
     dummyTransactions[1].vout[0].nValue = 21*CENT;
-    dummyTransactions[1].vout[0].scriptPubKey.SetDestination(key[2].GetPubKey().GetID());
+    dummyTransactions[1].vout[0].scriptPubKey = GetScriptForDestination(key[2].GetPubKey().GetID());
     dummyTransactions[1].vout[1].nValue = 22*CENT;
-    dummyTransactions[1].vout[1].scriptPubKey.SetDestination(key[3].GetPubKey().GetID());
+    dummyTransactions[1].vout[1].scriptPubKey = GetScriptForDestination(key[3].GetPubKey().GetID());
     coinsRet.SetCoins(dummyTransactions[1].GetHash(), CCoins(dummyTransactions[1], 0));
 
     return dummyTransactions;
@@ -307,7 +307,7 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     t.vout[0].nValue = 90*CENT;
     CKey key;
     key.MakeNewKey(true);
-    t.vout[0].scriptPubKey.SetDestination(key.GetPubKey().GetID());
+    t.vout[0].scriptPubKey = GetScriptForDestination(key.GetPubKey().GetID());
 
     string reason;
     BOOST_CHECK(IsStandardTx(t, reason));

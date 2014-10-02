@@ -23,6 +23,7 @@
 #include <boost/iostreams/concepts.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/thread.hpp>
 #include "json/json_spirit_writer_template.h"
 
 using namespace boost;
@@ -80,6 +81,11 @@ void RPCTypeCheck(const Object& o,
             throw JSONRPCError(RPC_TYPE_ERROR, err);
         }
     }
+}
+
+static inline int64_t roundint64(double d)
+{
+    return (int64_t)(d > 0 ? d + 0.5 : d - 0.5);
 }
 
 int64_t AmountFromValue(const Value& value)
@@ -259,6 +265,7 @@ static const CRPCCommand vRPCCommands[] =
     { "blockchain",         "getblockhash",           &getblockhash,           true,      false,      false },
     { "blockchain",         "getchaintips",           &getchaintips,           true,      false,      false },
     { "blockchain",         "getdifficulty",          &getdifficulty,          true,      false,      false },
+    { "blockchain",         "getmempoolinfo",         &getmempoolinfo,         true,      true,       false },
     { "blockchain",         "getrawmempool",          &getrawmempool,          true,      false,      false },
     { "blockchain",         "gettxout",               &gettxout,               true,      false,      false },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true,      false,      false },
@@ -630,7 +637,7 @@ void StartRPCThreads()
             try {
                 vEndpoints.push_back(ParseEndpoint(addr, defaultPort));
             }
-            catch(boost::system::system_error &e)
+            catch(const boost::system::system_error &)
             {
                 uiInterface.ThreadSafeMessageBox(
                     strprintf(_("Could not parse -rpcbind value %s as network address"), addr),
@@ -857,11 +864,10 @@ static bool HTTPReq_JSONRPC(AcceptedConnection *conn,
     if (!HTTPAuthorized(mapHeaders))
     {
         LogPrintf("ThreadRPCServer incorrect password attempt from %s\n", conn->peer_address_to_string());
-        /* Deter brute-forcing short passwords.
+        /* Deter brute-forcing
            If this results in a DoS the user really
            shouldn't have their RPC port exposed. */
-        if (mapArgs["-rpcpassword"].size() < 20)
-            MilliSleep(250);
+        MilliSleep(250);
 
         conn->stream() << HTTPError(HTTP_UNAUTHORIZED, false) << std::flush;
         return false;

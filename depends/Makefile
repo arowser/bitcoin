@@ -6,12 +6,15 @@ SDK_PATH ?= $(BASEDIR)/SDKs
 NO_QT ?=
 NO_WALLET ?=
 NO_UPNP ?=
+FALLBACK_DOWNLOAD_PATH ?= https://bitcoincore.org/depends-sources
 
 BUILD = $(shell ./config.guess)
 HOST ?= $(BUILD)
 PATCHES_PATH = $(BASEDIR)/patches
 BASEDIR = $(CURDIR)
 HASH_LENGTH:=11
+DOWNLOAD_CONNECT_TIMEOUT:=10
+DOWNLOAD_RETRIES:=3
 
 host:=$(BUILD)
 ifneq ($(HOST),)
@@ -72,7 +75,7 @@ packages += $($(host_arch)_$(host_os)_packages) $($(host_os)_packages) $(qt_pack
 native_packages += $($(host_arch)_$(host_os)_native_packages) $($(host_os)_native_packages) $(qt_native_packages_)
 all_packages = $(packages) $(native_packages)
 
-meta_depends = Makefile builders/default.mk hosts/default.mk hosts/$(host_os).mk builders/$(build_os).mk
+meta_depends = Makefile funcs.mk builders/default.mk hosts/default.mk hosts/$(host_os).mk builders/$(build_os).mk
 
 $(host_arch)_$(host_os)_native_toolchain?=$($(host_os)_native_toolchain)
 

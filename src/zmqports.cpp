@@ -14,6 +14,7 @@
 #endif
 
 #include "core.h"
+#include "util.h"
 #include "netbase.h"
 #include "json/json_spirit_value.h"
 

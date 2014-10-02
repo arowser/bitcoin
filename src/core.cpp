@@ -5,26 +5,23 @@
 
 #include "core.h"
 
-#include "util.h"
+#include "tinyformat.h"
+
+#include <boost/foreach.hpp>
 
 std::string COutPoint::ToString() const
 {
     return strprintf("COutPoint(%s, %u)", hash.ToString().substr(0,10), n);
 }
 
-void COutPoint::print() const
-{
-    LogPrintf("%s\n", ToString());
-}
-
-CTxIn::CTxIn(COutPoint prevoutIn, CScript scriptSigIn, unsigned int nSequenceIn)
+CTxIn::CTxIn(COutPoint prevoutIn, CScript scriptSigIn, uint32_t nSequenceIn)
 {
     prevout = prevoutIn;
     scriptSig = scriptSigIn;
     nSequence = nSequenceIn;
 }
 
-CTxIn::CTxIn(uint256 hashPrevTx, unsigned int nOut, CScript scriptSigIn, unsigned int nSequenceIn)
+CTxIn::CTxIn(uint256 hashPrevTx, uint32_t nOut, CScript scriptSigIn, uint32_t nSequenceIn)
 {
     prevout = COutPoint(hashPrevTx, nOut);
     scriptSig = scriptSigIn;
@@ -46,11 +43,6 @@ std::string CTxIn::ToString() const
     return str;
 }
 
-void CTxIn::print() const
-{
-    LogPrintf("%s\n", ToString());
-}
-
 CTxOut::CTxOut(int64_t nValueIn, CScript scriptPubKeyIn)
 {
     nValue = nValueIn;
@@ -65,11 +57,6 @@ uint256 CTxOut::GetHash() const
 std::string CTxOut::ToString() const
 {
     return strprintf("CTxOut(nValue=%d.%08d, scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,30));
-}
-
-void CTxOut::print() const
-{
-    LogPrintf("%s\n", ToString());
 }
 
 CFeeRate::CFeeRate(int64_t nFeePaid, size_t nSize)
@@ -92,8 +79,7 @@ int64_t CFeeRate::GetFee(size_t nSize) const
 
 std::string CFeeRate::ToString() const
 {
-    std::string result = FormatMoney(nSatoshisPerK) + " BTC/kB";
-    return result;
+    return strprintf("%d.%08d BTC/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN);
 }
 
 CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), nLockTime(0) {}
@@ -124,6 +110,22 @@ CTransaction& CTransaction::operator=(const CTransaction &tx) {
     return *this;
 }
 
+bool CTransaction::IsEquivalentTo(const CTransaction& tx) const
+{
+    if (nVersion   != tx.nVersion   ||
+        nLockTime  != tx.nLockTime  ||
+        vin.size() != tx.vin.size() ||
+        vout       != tx.vout)
+        return false;
+    for (unsigned int i = 0; i < vin.size(); i++)
+    {
+        if (vin[i].nSequence != tx.vin[i].nSequence ||
+            vin[i].prevout   != tx.vin[i].prevout)
+            return false;
+    }
+    return true;
+}
+
 int64_t CTransaction::GetValueOut() const
 {
     int64_t nValueOut = 0;
@@ -138,6 +140,14 @@ int64_t CTransaction::GetValueOut() const
 
 double CTransaction::ComputePriority(double dPriorityInputs, unsigned int nTxSize) const
 {
+    nTxSize = CalculateModifiedSize(nTxSize);
+    if (nTxSize == 0) return 0.0;
+
+    return dPriorityInputs / nTxSize;
+}
+
+unsigned int CTransaction::CalculateModifiedSize(unsigned int nTxSize) const
+{
     // In order to avoid disincentivizing cleaning up the UTXO set we don't count
     // the constant overhead for each txin and up to 110 bytes of scriptSig (which
     // is enough to cover a compressed pubkey p2sh redemption) for priority.
@@ -145,14 +155,14 @@ double CTransaction::ComputePriority(double dPriorityInputs, unsigned int nTxSiz
     // risk encouraging people to create junk outputs to redeem later.
     if (nTxSize == 0)
         nTxSize = ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
+
     BOOST_FOREACH(const CTxIn& txin, vin)
     {
         unsigned int offset = 41U + std::min(110U, (unsigned int)txin.scriptSig.size());
         if (nTxSize > offset)
             nTxSize -= offset;
     }
-    if (nTxSize == 0) return 0.0;
-    return dPriorityInputs / nTxSize;
+    return nTxSize;
 }
 
 std::string CTransaction::ToString() const
@@ -169,11 +179,6 @@ std::string CTransaction::ToString() const
     for (unsigned int i = 0; i < vout.size(); i++)
         str += "    " + vout[i].ToString() + "\n";
     return str;
-}
-
-void CTransaction::print() const
-{
-    LogPrintf("%s", ToString());
 }
 
 // Amount compression:
@@ -285,9 +290,10 @@ uint256 CBlock::CheckMerkleBranch(uint256 hash, const std::vector<uint256>& vMer
     return hash;
 }
 
-void CBlock::print() const
+std::string CBlock::ToString() const
 {
-    LogPrintf("CBlock(hash=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, nTime=%u, nBits=%08x, nNonce=%u, vtx=%u)\n",
+    std::stringstream s;
+    s << strprintf("CBlock(hash=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, nTime=%u, nBits=%08x, nNonce=%u, vtx=%u)\n",
         GetHash().ToString(),
         nVersion,
         hashPrevBlock.ToString(),
@@ -296,11 +302,11 @@ void CBlock::print() const
         vtx.size());
     for (unsigned int i = 0; i < vtx.size(); i++)
     {
-        LogPrintf("  ");
-        vtx[i].print();
+        s << "  " << vtx[i].ToString() << "\n";
     }
-    LogPrintf("  vMerkleTree: ");
+    s << "  vMerkleTree: ";
     for (unsigned int i = 0; i < vMerkleTree.size(); i++)
-        LogPrintf("%s ", vMerkleTree[i].ToString());
-    LogPrintf("\n");
+        s << " " << vMerkleTree[i].ToString();
+    s << "\n";
+    return s.str();
 }

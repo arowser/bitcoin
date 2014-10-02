@@ -11,10 +11,11 @@
 #include "db.h"
 #include "main.h"
 #include "paymentserver.h"
-#include "script.h"
+#include "script/script.h"
 #include "transactionrecord.h"
 #include "timedata.h"
 #include "ui_interface.h"
+#include "util.h"
 #include "wallet.h"
 
 #include <stdint.h>

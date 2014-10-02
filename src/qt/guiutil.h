@@ -102,14 +102,13 @@ namespace GUIUtil
     // Open debug.log
     void openDebugLogfile();
 
+    // Replace invalid default fonts with known good ones
+    void SubstituteFonts();
+
     /** Qt event filter that intercepts ToolTipChange events, and replaces the tooltip with a rich text
       representation if needed. This assures that Qt can word-wrap long tooltip messages.
       Tooltips longer than the provided size threshold (in characters) are wrapped.
      */
-
-    // Replace invalid default fonts with known good ones
-    void SubstituteFonts();
-
     class ToolTipToRichTextFilter : public QObject
     {
         Q_OBJECT
@@ -181,7 +180,7 @@ namespace GUIUtil
     QString formatDurationStr(int secs);
 
     /* Format CNodeStats.nServices bitmask into a user-readable string */
-    QString formatServicesStr(uint64_t mask);
+    QString formatServicesStr(quint64 mask);
 
     /* Format a CNodeCombinedStats.dPingTime into a user-readable string or display N/A, if 0*/
     QString formatPingTime(double dPingTime);

@@ -5,9 +5,10 @@
 
 #include "chainparams.h"
 
-#include "assert.h"
 #include "random.h"
 #include "util.h"
+
+#include <assert.h>
 
 #include <boost/assign/list_of.hpp>
 
@@ -98,7 +99,6 @@ public:
         vSeeds.push_back(CDNSSeedData("dashjr.org", "dnsseed.bitcoin.dashjr.org"));
         vSeeds.push_back(CDNSSeedData("bitcoinstats.com", "seed.bitcoinstats.com"));
         vSeeds.push_back(CDNSSeedData("bitnodes.io", "seed.bitnodes.io"));
-        vSeeds.push_back(CDNSSeedData("open-nodes.org", "seeds.bitcoin.open-nodes.org"));
         vSeeds.push_back(CDNSSeedData("xf2.org", "bitseed.xf2.org"));
 
         base58Prefixes[PUBKEY_ADDRESS] = list_of(0);
@@ -155,6 +155,7 @@ public:
         vSeeds.push_back(CDNSSeedData("alexykot.me", "testnet-seed.alexykot.me"));
         vSeeds.push_back(CDNSSeedData("bitcoin.petertodd.org", "testnet-seed.bitcoin.petertodd.org"));
         vSeeds.push_back(CDNSSeedData("bluematt.me", "testnet-seed.bluematt.me"));
+        vSeeds.push_back(CDNSSeedData("bitcoin.schildbach.de", "testnet-seed.bitcoin.schildbach.de"));
 
         base58Prefixes[PUBKEY_ADDRESS] = list_of(111);
         base58Prefixes[SCRIPT_ADDRESS] = list_of(196);
@@ -220,22 +221,23 @@ const CChainParams &Params() {
     return *pCurrentParams;
 }
 
-void SelectParams(CBaseChainParams::Network network) {
-    SelectBaseParams(network);
+CChainParams &Params(CBaseChainParams::Network network) {
     switch (network) {
         case CBaseChainParams::MAIN:
-            pCurrentParams = &mainParams;
-            break;
+            return mainParams;
         case CBaseChainParams::TESTNET:
-            pCurrentParams = &testNetParams;
-            break;
+            return testNetParams;
         case CBaseChainParams::REGTEST:
-            pCurrentParams = &regTestParams;
-            break;
+            return regTestParams;
         default:
             assert(false && "Unimplemented network");
-            return;
+            return mainParams;
     }
+}
+
+void SelectParams(CBaseChainParams::Network network) {
+    SelectBaseParams(network);
+    pCurrentParams = &Params(network);
 }
 
 bool SelectParamsFromCommandLine() {

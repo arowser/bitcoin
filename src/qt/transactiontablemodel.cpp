@@ -27,6 +27,7 @@
 // Amount column is right-aligned it contains numbers
 static int column_alignments[] = {
         Qt::AlignLeft|Qt::AlignVCenter, /* status */
+        Qt::AlignLeft|Qt::AlignVCenter, /* watchonly */
         Qt::AlignLeft|Qt::AlignVCenter, /* date */
         Qt::AlignLeft|Qt::AlignVCenter, /* type */
         Qt::AlignLeft|Qt::AlignVCenter, /* address */
@@ -208,10 +209,7 @@ public:
             }
             return rec;
         }
-        else
-        {
-            return 0;
-        }
+        return 0;
     }
 
     QString describe(TransactionRecord *rec, int unit)
@@ -224,7 +222,7 @@ public:
                 return TransactionDesc::toHTML(wallet, mi->second, rec, unit);
             }
         }
-        return QString("");
+        return QString();
     }
 };
 
@@ -234,7 +232,7 @@ TransactionTableModel::TransactionTableModel(CWallet* wallet, WalletModel *paren
         walletModel(parent),
         priv(new TransactionTablePriv(wallet, this))
 {
-    columns << QString() << tr("Date") << tr("Type") << tr("Address") << BitcoinUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit());
+    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Address") << BitcoinUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit());
     priv->refreshWallet();
 
     connect(walletModel->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
@@ -329,10 +327,7 @@ QString TransactionTableModel::formatTxDate(const TransactionRecord *wtx) const
     {
         return GUIUtil::dateTimeStr(wtx->time);
     }
-    else
-    {
-        return QString();
-    }
+    return QString();
 }
 
 /* Look up address in address book, if found return label (address)
@@ -344,11 +339,11 @@ QString TransactionTableModel::lookupAddress(const std::string &address, bool to
     QString description;
     if(!label.isEmpty())
     {
-        description += label + QString(" ");
+        description += label;
     }
     if(label.isEmpty() || tooltip)
     {
-        description += QString("(") + QString::fromStdString(address) + QString(")");
+        description += QString(" (") + QString::fromStdString(address) + QString(")");
     }
     return description;
 }
@@ -388,13 +383,15 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
     default:
         return QIcon(":/icons/tx_inout");
     }
-    return QVariant();
 }
 
 QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, bool tooltip) const
 {
-    // mark transactions involving watch-only addresses:
-    QString watchAddress = wtx->involvesWatchAddress ? " (w) " : "";
+    QString watchAddress;
+    if (tooltip) {
+        // Mark transactions involving watch-only addresses by adding " (watch-only)"
+        watchAddress = wtx->involvesWatchAddress ? QString(" (") + tr("watch-only") + QString(")") : "";
+    }
 
     switch(wtx->type)
     {
@@ -452,9 +449,9 @@ QVariant TransactionTableModel::txStatusDecoration(const TransactionRecord *wtx)
     {
     case TransactionStatus::OpenUntilBlock:
     case TransactionStatus::OpenUntilDate:
-        return QColor(64,64,255);
+        return COLOR_TX_STATUS_OPENUNTILDATE;
     case TransactionStatus::Offline:
-        return QColor(192,192,192);
+        return COLOR_TX_STATUS_OFFLINE;
     case TransactionStatus::Unconfirmed:
         return QIcon(":/icons/transaction_0");
     case TransactionStatus::Confirming:
@@ -478,8 +475,17 @@ QVariant TransactionTableModel::txStatusDecoration(const TransactionRecord *wtx)
     case TransactionStatus::MaturesWarning:
     case TransactionStatus::NotAccepted:
         return QIcon(":/icons/transaction_0");
+    default:
+        return COLOR_BLACK;
     }
-    return QColor(0,0,0);
+}
+
+QVariant TransactionTableModel::txWatchonlyDecoration(const TransactionRecord *wtx) const
+{
+    if (wtx->involvesWatchAddress)
+        return QIcon(":/icons/eye");
+    else
+        return QVariant();
 }
 
 QString TransactionTableModel::formatTooltip(const TransactionRecord *rec) const
@@ -506,6 +512,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         {
         case Status:
             return txStatusDecoration(rec);
+        case Watchonly:
+            return txWatchonlyDecoration(rec);
         case ToAddress:
             return txAddressDecoration(rec);
         }
@@ -533,6 +541,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return rec->time;
         case Type:
             return formatTxType(rec);
+        case Watchonly:
+            return (rec->involvesWatchAddress ? 1 : 0);
         case ToAddress:
             return formatTxToAddress(rec, true);
         case Amount:
@@ -562,6 +572,10 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         return rec->type;
     case DateRole:
         return QDateTime::fromTime_t(static_cast<uint>(rec->time));
+    case WatchonlyRole:
+        return rec->involvesWatchAddress;
+    case WatchonlyDecorationRole:
+        return txWatchonlyDecoration(rec);
     case LongDescriptionRole:
         return priv->describe(rec, walletModel->getOptionsModel()->getDisplayUnit());
     case AddressRole:
@@ -606,6 +620,8 @@ QVariant TransactionTableModel::headerData(int section, Qt::Orientation orientat
                 return tr("Date and time that the transaction was received.");
             case Type:
                 return tr("Type of transaction.");
+            case Watchonly:
+                return tr("Whether or not a watch-only address is involved in this transaction.");
             case ToAddress:
                 return tr("Destination address of transaction.");
             case Amount:
@@ -624,10 +640,7 @@ QModelIndex TransactionTableModel::index(int row, int column, const QModelIndex 
     {
         return createIndex(row, column, priv->index(row));
     }
-    else
-    {
-        return QModelIndex();
-    }
+    return QModelIndex();
 }
 
 void TransactionTableModel::updateDisplayUnit()

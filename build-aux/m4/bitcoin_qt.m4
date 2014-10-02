@@ -48,8 +48,8 @@ dnl CAUTION: Do not use this inside of a conditional.
 AC_DEFUN([BITCOIN_QT_INIT],[
   dnl enable qt support
   AC_ARG_WITH([gui],
-    [AS_HELP_STRING([--with-gui],
-    [with GUI (no|qt4|qt5|auto. default is auto, qt4 tried first.)])],
+    [AS_HELP_STRING([--with-gui@<:@=no|qt4|qt5|auto@:>@],
+    [build bitcoin-qt GUI (default=auto, qt4 tried first)])],
     [
      bitcoin_qt_want_version=$withval
      if test x$bitcoin_qt_want_version = xyes; then
@@ -112,11 +112,7 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
       AC_DEFINE(QT_STATICPLUGIN, 1, [Define this symbol if qt plugins are static])
       if test x$qt_plugin_path != x; then
         QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
-        if test x$bitcoin_qt_got_major_vers == x5; then
-          QT_LIBS="$QT_LIBS -L$qt_plugin_path/platforms"
-        else
-          QT_LIBS="$QT_LIBS -L$qt_plugin_path/codecs"
-        fi
+        QT_LIBS="$QT_LIBS -L$qt_plugin_path/platforms"
       fi
       if test x$use_pkgconfig = xyes; then
         PKG_CHECK_MODULES([QTPLATFORM], [Qt5PlatformSupport], [QT_LIBS="$QTPLATFORM_LIBS $QT_LIBS"])
@@ -141,6 +137,10 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
   else
     if test x$TARGET_OS == xwindows; then
       AC_DEFINE(QT_STATICPLUGIN, 1, [Define this symbol if qt plugins are static])
+      if test x$qt_plugin_path != x; then
+        QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
+        QT_LIBS="$QT_LIBS -L$qt_plugin_path/codecs"
+      fi
       _BITCOIN_QT_CHECK_STATIC_PLUGINS([
          Q_IMPORT_PLUGIN(qcncodecs)
          Q_IMPORT_PLUGIN(qjpcodecs)
